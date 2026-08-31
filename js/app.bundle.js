@@ -536,6 +536,14 @@
   // -------------------------------------------------------------
   // 3. PDF EXPORT SERVICE (jsPDF)
   // -------------------------------------------------------------
+  // Helper: hex color to RGB array
+  function hexToRgb(hex) {
+    hex = (hex || '#24b35a').replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const num = parseInt(hex, 16);
+    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+  }
+
   class PDFExportService {
     constructor() {
       this.defaultLogo = null;
@@ -568,176 +576,232 @@
 
     async generatePDF(chartManager, dataset, options = {}) {
       const jspdfModule = window.jspdf ? window.jspdf.jsPDF : (window.jsPDF || null);
-      if (!jspdfModule) {
-        throw new Error('Biblioteca jsPDF não carregada.');
-      }
+      if (!jspdfModule) throw new Error('Biblioteca jsPDF não carregada.');
 
       const orientation = options.orientation || 'landscape';
-      const doc = new jspdfModule({
-        orientation: orientation,
-        unit: 'mm',
-        format: 'a4'
-      });
+      const doc = new jspdfModule({ orientation, unit: 'mm', format: 'a4' });
 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const mTop = options.marginTop  !== undefined ? Number(options.marginTop)  : 12;
+      const mBot = options.marginBottom !== undefined ? Number(options.marginBottom) : 14;
+      const mLeft = options.marginLeft !== undefined ? Number(options.marginLeft) : 15;
+      const mRight = options.marginRight !== undefined ? Number(options.marginRight) : 15;
+      const pw = pageW - mLeft - mRight; // printable width
+      const HEADER_H = 24;
+      const FOOTER_H = 8;
+      const USABLE   = pageH - HEADER_H - mBot - FOOTER_H;
 
-      const marginTop = options.marginTop !== undefined ? Number(options.marginTop) : 12;
-      const marginBottom = options.marginBottom !== undefined ? Number(options.marginBottom) : 12;
-      const marginLeft = options.marginLeft !== undefined ? Number(options.marginLeft) : 15;
-      const marginRight = options.marginRight !== undefined ? Number(options.marginRight) : 15;
-
-      const printableWidth = pageWidth - marginLeft - marginRight;
-      let currentY = marginTop;
-
-      // 1. Cabeçalho Corporativo
+      // ── helpers ────────────────────────────────────────────────────────────
       const logoImg = options.logoBase64 || this.defaultLogo;
-      const logoWidth = 38;
-      const logoHeight = 12;
 
-      if (logoImg && options.showLogo !== false) {
-        try {
-          doc.addImage(logoImg, 'PNG', marginLeft, currentY, logoWidth, logoHeight);
-        } catch (err) {
-          console.warn('Erro logo PDF:', err);
+      const drawHeader = (pageNum, totalPages) => {
+        // Barra verde topo
+        doc.setFillColor(0, 72, 50);
+        doc.rect(0, 0, pageW, 7, 'F');
+
+        // Logo
+        if (logoImg) {
+          try { doc.addImage(logoImg, 'PNG', mLeft, 9, 36, 12); } catch (e) {}
         }
-      }
 
-      const headerTitle = options.title || 'RELATÓRIO DE MONITORAMENTO E TELEMETRIA';
-      const headerSubtitle = options.subtitle || 'Koppert Brasil - Proteção Biológica das Culturas';
+        // Títulos
+        const title    = (options.title    || 'RELATÓRIO DE MONITORAMENTO E TELEMETRIA').toUpperCase();
+        const subtitle = options.subtitle  || 'Koppert Brasil — Proteção Biológica das Culturas';
+        const txX = mLeft + 36 + 8;
 
-      const textStartX = (logoImg && options.showLogo !== false) ? marginLeft + logoWidth + 8 : marginLeft;
+        doc.setFont('helvetica', 'bold');   doc.setFontSize(11);
+        doc.setTextColor(0, 72, 50);        doc.text(title, txX, 14);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+        doc.setTextColor(80, 100, 90);      doc.text(subtitle, txX, 19.5);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.setTextColor(0, 72, 50); // Verde Floresta Koppert
-      doc.text(headerTitle, textStartX, currentY + 5);
+        // Data / arquivo (direita)
+        const now = new Date();
+        const dateFmt = [
+          String(now.getDate()).padStart(2,'0'),
+          String(now.getMonth()+1).padStart(2,'0'),
+          now.getFullYear()
+        ].join('/') + ' ' + [
+          String(now.getHours()).padStart(2,'0'),
+          String(now.getMinutes()).padStart(2,'0')
+        ].join(':');
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text(headerSubtitle, textStartX, currentY + 10);
+        doc.setFontSize(7); doc.setTextColor(120, 130, 125);
+        doc.text(`Emissão: ${dateFmt}`, pageW - mRight, 12, { align: 'right' });
+        if (options.filename)
+          doc.text(`Arquivo: ${options.filename}`, pageW - mRight, 17, { align: 'right' });
 
-      const now = new Date();
-      const dateFormatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        // Linha separadora
+        doc.setDrawColor(0, 72, 50); doc.setLineWidth(0.45);
+        doc.line(mLeft, HEADER_H, pageW - mRight, HEADER_H);
 
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Emissão: ${dateFormatted}`, pageWidth - marginRight, currentY + 4, { align: 'right' });
-      if (options.filename) {
-        doc.text(`Arquivo: ${options.filename}`, pageWidth - marginRight, currentY + 9, { align: 'right' });
-      }
+        // Número de página (pequeno, acima da linha)
+        doc.setFontSize(6.5); doc.setTextColor(140, 155, 148);
+        doc.text(`Página ${pageNum} / ${totalPages}`, pageW - mRight, HEADER_H - 1, { align: 'right' });
+      };
 
-      currentY += 15;
+      const drawFooter = () => {
+        const fy = pageH - mBot + 3;
+        doc.setDrawColor(200, 215, 205); doc.setLineWidth(0.2);
+        doc.line(mLeft, fy - 2, pageW - mRight, fy - 2);
+        doc.setFontSize(6.5); doc.setTextColor(160, 170, 165);
+        doc.text('Koppert Brasil • Parceiros com a Natureza • Sistema de Telemetria CSV to PDF', mLeft, fy + 1);
+        if (options.responsible)
+          doc.text(`Responsável: ${options.responsible}`, pageW - mRight, fy + 1, { align: 'right' });
+      };
 
-      doc.setDrawColor(0, 72, 50);
-      doc.setLineWidth(0.6);
-      doc.line(marginLeft, currentY, pageWidth - marginRight, currentY);
-      currentY += 4;
+      // ── calcular número total de páginas ───────────────────────────────────
+      const showStats = options.showStatsTable !== false && dataset && dataset.sensors;
+      const activeSensors = showStats ? dataset.sensors.filter(s => s.enabled) : [];
 
-      // 2. Informações de Lote / Operador
+      const ROW_H        = 5.2;
+      const TBL_HDR_H    = 8;
+      const TBL_TITLE_H  = 8;
+      const INFO_BOX_H   = (options.responsible || options.notes) ? 12 : 0;
+      const rowsPerPage  = Math.floor((USABLE - TBL_TITLE_H - TBL_HDR_H) / ROW_H);
+      const tablePages   = activeSensors.length > 0 ? Math.ceil(activeSensors.length / rowsPerPage) : 0;
+      const totalPages   = 1 + tablePages;
+
+      // ── PÁGINA 1: Gráfico ──────────────────────────────────────────────────
+      drawHeader(1, totalPages);
+      let y = HEADER_H + 3;
+
+      // Info box
       if (options.responsible || options.notes) {
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(marginLeft, currentY, printableWidth, 9, 1.5, 1.5, 'FD');
-
-        doc.setFontSize(7.5);
-        doc.setFont('helvetica', 'bold');
+        doc.setFillColor(244, 248, 246);
+        doc.setDrawColor(180, 210, 195); doc.setLineWidth(0.25);
+        doc.roundedRect(mLeft, y, pw, 9, 1.5, 1.5, 'FD');
+        doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 41, 59);
-
-        let infoText = '';
-        if (options.responsible) infoText += `Responsável: ${options.responsible}   `;
-        if (options.notes) infoText += `Observações: ${options.notes}`;
-
-        doc.text(infoText, marginLeft + 3, currentY + 6);
-        currentY += 12;
+        let info = '';
+        if (options.responsible) info += `Responsável Técnico: ${options.responsible}   `;
+        if (options.notes)       info += `Observações: ${options.notes}`;
+        doc.text(info, mLeft + 3, y + 6);
+        y += 12;
       }
 
-      // 3. Gráfico
+      // Rótulo da seção de gráfico
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+      doc.setTextColor(0, 72, 50);
+      doc.text('Gráfico de Telemetria dos Sensores', mLeft, y + 5);
+      y += 7;
+
+      // Gráfico
       const chartImgData = chartManager.getImageDataURL();
       if (chartImgData) {
-        const availableHeight = pageHeight - marginBottom - currentY - (options.showStatsTable !== false ? 38 : 10);
-        const chartHeight = options.chartHeight ? Math.min(Number(options.chartHeight), availableHeight) : Math.max(availableHeight, 60);
-
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.3);
-        doc.rect(marginLeft, currentY, printableWidth, chartHeight);
-
-        doc.addImage(chartImgData, 'PNG', marginLeft + 0.5, currentY + 0.5, printableWidth - 1, chartHeight - 1);
-        currentY += chartHeight + 4;
+        const chartH = pageH - y - mBot - FOOTER_H - 2;
+        doc.setDrawColor(180, 210, 195); doc.setLineWidth(0.3);
+        doc.rect(mLeft, y, pw, chartH);
+        doc.addImage(chartImgData, 'PNG', mLeft + 1, y + 1, pw - 2, chartH - 2);
+      } else {
+        doc.setFontSize(9); doc.setTextColor(150, 150, 150);
+        doc.text('[Gráfico não disponível]', mLeft + pw / 2, y + 30, { align: 'center' });
       }
 
-      // 4. Tabela Estatística
-      if (options.showStatsTable !== false && dataset && dataset.sensors) {
-        const activeSensors = dataset.sensors.filter(s => s.enabled);
+      drawFooter();
 
-        if (activeSensors.length > 0) {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8.5);
+      // ── PÁGINAS DA TABELA ─────────────────────────────────────────────────
+      if (activeSensors.length > 0) {
+        const cols = [
+          { label: 'Sensor',          pct: 0.28 },
+          { label: 'Tipo',            pct: 0.16 },
+          { label: 'Unidade',         pct: 0.09 },
+          { label: 'Mínimo',          pct: 0.11 },
+          { label: 'Máximo',          pct: 0.11 },
+          { label: 'Média',           pct: 0.11 },
+          { label: 'Última Leitura',  pct: 0.14 },
+        ].map(c => ({ ...c, w: pw * c.pct }));
+
+        let sIdx = 0, tPage = 0;
+
+        while (sIdx < activeSensors.length) {
+          tPage++;
+          doc.addPage();
+          drawHeader(1 + tPage, totalPages);
+          y = HEADER_H + 3;
+
+          // Título
+          const tblLabel = tablePages > 1
+            ? `Resumo Estatístico dos Sensores (${tPage} / ${tablePages})`
+            : 'Resumo Estatístico dos Sensores Monitorados';
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
           doc.setTextColor(0, 72, 50);
-          doc.text('Resumo Estatístico dos Sensores Monitorados', marginLeft, currentY + 3);
-          currentY += 5;
+          doc.text(tblLabel, mLeft, y + 5);
+          y += TBL_TITLE_H;
 
-          const colW = printableWidth / 5;
-          doc.setFillColor(241, 245, 249);
-          doc.rect(marginLeft, currentY, printableWidth, 5, 'F');
-          doc.setFontSize(7);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(71, 85, 105);
+          // Cabeçalho da tabela (fundo verde escuro)
+          doc.setFillColor(0, 72, 50);
+          doc.rect(mLeft, y, pw, TBL_HDR_H - 1, 'F');
 
-          doc.text('Sensor', marginLeft + 2, currentY + 3.5);
-          doc.text('Unidade', marginLeft + colW + 2, currentY + 3.5);
-          doc.text('Mínimo', marginLeft + colW * 2 + 2, currentY + 3.5);
-          doc.text('Máximo', marginLeft + colW * 3 + 2, currentY + 3.5);
-          doc.text('Média', marginLeft + colW * 4 + 2, currentY + 3.5);
-          currentY += 5;
+          let cx = mLeft;
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.setTextColor(255, 255, 255);
+          cols.forEach(col => {
+            doc.text(col.label, cx + 2.5, y + 5.5);
+            cx += col.w;
+          });
+          y += TBL_HDR_H - 1;
 
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(6.5);
-          doc.setTextColor(30, 41, 59);
+          // Linhas
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+          const rowsThis = Math.min(rowsPerPage, activeSensors.length - sIdx);
 
-          const maxSensorsToShow = orientation === 'landscape' ? 8 : 12;
-          const displaySensors = activeSensors.slice(0, maxSensorsToShow);
+          for (let r = 0; r < rowsThis; r++) {
+            const sensor = activeSensors[sIdx + r];
+            const stats  = sensor.stats || { min: 0, max: 0, avg: 0, last: 0 };
 
-          displaySensors.forEach((sensor, idx) => {
-            if (idx % 2 === 1) {
-              doc.setFillColor(248, 250, 252);
-              doc.rect(marginLeft, currentY, printableWidth, 4, 'F');
+            // Zebra
+            if (r % 2 === 0) {
+              doc.setFillColor(244, 248, 246);
+              doc.rect(mLeft, y, pw, ROW_H, 'F');
             }
 
-            const sName = sensor.name.length > 32 ? sensor.name.substring(0, 30) + '...' : sensor.name;
-            const stats = sensor.stats || { min: 0, max: 0, avg: 0 };
+            // Bolinha colorida do sensor
+            const rgb = hexToRgb(sensor.color || '#24b35a');
+            doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+            doc.circle(mLeft + 3, y + ROW_H / 2, 1.3, 'F');
 
-            doc.text(sName, marginLeft + 2, currentY + 3);
-            doc.text(sensor.unit || '-', marginLeft + colW + 2, currentY + 3);
-            doc.text(stats.min.toFixed(2), marginLeft + colW * 2 + 2, currentY + 3);
-            doc.text(stats.max.toFixed(2), marginLeft + colW * 3 + 2, currentY + 3);
-            doc.text(stats.avg.toFixed(2), marginLeft + colW * 4 + 2, currentY + 3);
+            doc.setTextColor(30, 41, 59);
+            cx = mLeft;
 
-            currentY += 4;
-          });
+            const sName = sensor.name.length > 40 ? sensor.name.substring(0, 38) + '…' : sensor.name;
+            const lastVal = stats.last !== undefined ? Number(stats.last).toFixed(2) : '-';
+            const rowData = [
+              sName,
+              sensor.group || '-',
+              sensor.unit  || '-',
+              Number(stats.min).toFixed(2),
+              Number(stats.max).toFixed(2),
+              Number(stats.avg).toFixed(2),
+              lastVal,
+            ];
 
-          if (activeSensors.length > maxSensorsToShow) {
-            doc.setFontSize(6);
-            doc.setTextColor(148, 163, 184);
-            doc.text(`(+ ${activeSensors.length - maxSensorsToShow} outros sensores monitorados)`, marginLeft + 2, currentY + 3);
-            currentY += 4;
+            rowData.forEach((val, ci) => {
+              doc.text(String(val), cx + (ci === 0 ? 6 : 2.5), y + 3.6);
+              cx += cols[ci].w;
+            });
+
+            // Linha divisória leve
+            doc.setDrawColor(220, 232, 226); doc.setLineWidth(0.15);
+            doc.line(mLeft, y + ROW_H, mLeft + pw, y + ROW_H);
+
+            y += ROW_H;
           }
+
+          // Borda externa da tabela
+          const tblTotalH = (TBL_HDR_H - 1) + rowsThis * ROW_H;
+          doc.setDrawColor(120, 170, 148); doc.setLineWidth(0.35);
+          doc.rect(mLeft, HEADER_H + 3 + TBL_TITLE_H, pw, tblTotalH);
+
+          sIdx += rowsThis;
+          drawFooter();
         }
       }
 
-      // 5. Rodapé
-      const footerY = pageHeight - (marginBottom / 2);
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.3);
-      doc.line(marginLeft, footerY - 3, pageWidth - marginRight, footerY - 3);
-
-      doc.setFontSize(6.5);
-      doc.setTextColor(148, 163, 184);
-      doc.text('Koppert Brasil • Parceiros com a Natureza • Sistema de Telemetria CSV to PDF', marginLeft, footerY);
-      doc.text('Página 1 de 1', pageWidth - marginRight, footerY, { align: 'right' });
-
-      const saveName = options.filename ? `Relatorio_Koppert_${options.filename.replace(/\.csv$/i, '')}.pdf` : `Relatorio_Koppert_${Date.now()}.pdf`;
+      // ── Salvar ─────────────────────────────────────────────────────────────
+      const saveName = options.filename
+        ? `Relatorio_Koppert_${options.filename.replace(/\.csv$/i, '')}.pdf`
+        : `Relatorio_Koppert_${Date.now()}.pdf`;
       doc.save(saveName);
     }
   }
@@ -1261,37 +1325,168 @@
     }
 
     updatePDFMockup() {
-      if (!this.pageMockup) return;
+      const container = document.querySelector('.page-mockup-wrapper');
+      if (!container) return;
+
       const orientation = this.pdfOrientationSelect ? this.pdfOrientationSelect.value : 'landscape';
-      const title = (this.pdfTitleInput && this.pdfTitleInput.value) || 'RELATÓRIO DE TELEMETRIA';
+      const title    = (this.pdfTitleInput    && this.pdfTitleInput.value)    || 'RELATÓRIO DE TELEMETRIA';
       const subtitle = (this.pdfSubtitleInput && this.pdfSubtitleInput.value) || 'Koppert Brasil';
-      const marginV = Math.max(5, Math.min(30, parseInt(this.pdfMarginV ? this.pdfMarginV.value : 12) || 12));
-      const marginH = Math.max(5, Math.min(30, parseInt(this.pdfMarginH ? this.pdfMarginH.value : 15) || 15));
+      const marginV  = Math.max(5, Math.min(30, parseInt(this.pdfMarginV ? this.pdfMarginV.value : 12) || 12));
+      const marginH  = Math.max(5, Math.min(30, parseInt(this.pdfMarginH ? this.pdfMarginH.value : 15) || 15));
       const showTable = this.pdfIncludeTable ? this.pdfIncludeTable.checked : true;
 
-      if (orientation === 'portrait') {
-        this.pageMockup.classList.add('portrait');
-        if (this.previewDimLabel) this.previewDimLabel.textContent = 'Retrato (210 x 297 mm)';
-      } else {
-        this.pageMockup.classList.remove('portrait');
-        if (this.previewDimLabel) this.previewDimLabel.textContent = 'Paisagem (297 x 210 mm)';
+      if (this.previewDimLabel) {
+        this.previewDimLabel.textContent = orientation === 'portrait'
+          ? 'Retrato (210 × 297 mm)' : 'Paisagem (297 × 210 mm)';
       }
 
-      const scaleFactor = orientation === 'portrait' ? 1.0 : 1.35;
-      this.pageMockup.style.setProperty('--mock-mt', `${marginV * scaleFactor}px`);
-      this.pageMockup.style.setProperty('--mock-mb', `${marginV * scaleFactor}px`);
-      this.pageMockup.style.setProperty('--mock-ml', `${marginH * scaleFactor}px`);
-      this.pageMockup.style.setProperty('--mock-mr', `${marginH * scaleFactor}px`);
+      // Contar páginas estimadas
+      const activeSensors = (this.currentDataset && this.currentDataset.sensors)
+        ? this.currentDataset.sensors.filter(s => s.enabled) : [];
+      const rowsPerPage = 28;
+      const tablePages  = (showTable && activeSensors.length > 0)
+        ? Math.ceil(activeSensors.length / rowsPerPage) : 0;
+      const totalPages  = 1 + tablePages;
 
-      if (this.mockupTitleText) this.mockupTitleText.textContent = title;
-      if (this.mockupSubtitleText) this.mockupSubtitleText.textContent = subtitle;
-      if (this.mockupStatsArea) this.mockupStatsArea.style.display = showTable ? 'block' : 'none';
+      // Aspect ratio
+      const isPortrait = orientation === 'portrait';
+      const pw = isPortrait ? 210 : 297;
+      const ph = isPortrait ? 297 : 210;
+      // Scale para caber em ~360px de largura
+      const scale = 360 / pw;
+      const mockH = Math.round(ph * scale);
 
+      const logoSrc = this.customLogoBase64 || this.pdfService.defaultLogo || '';
       const chartImg = this.chartManager ? this.chartManager.getImageDataURL() : null;
-      const mockupChartArea = document.getElementById('mockup-chart-area');
-      if (chartImg && mockupChartArea) {
-        mockupChartArea.innerHTML = `<img src="${chartImg}" alt="Gráfico" style="width:100%;height:100%;object-fit:contain;">`;
+
+      // Build page 1 preview (chart page)
+      const buildPage = (pageNum, isChartPage) => {
+        const barH   = Math.round(7 * scale);
+        const hdrH   = Math.round(24 * scale);
+        const mT     = Math.round(marginV * scale);
+        const mB     = Math.round(marginV * scale);
+        const mL     = Math.round(marginH * scale);
+        const mR     = Math.round(marginH * scale);
+        const ftrH   = Math.round(8 * scale);
+        const innerW = Math.round(pw * scale) - mL - mR;
+        const innerH = Math.round(ph * scale) - hdrH - mB - ftrH;
+
+        return `
+          <div class="preview-page" style="
+            width:${Math.round(pw * scale)}px;
+            height:${mockH}px;
+            background:#fff;
+            border:1px solid #c8d8cf;
+            border-radius:3px;
+            position:relative;
+            overflow:hidden;
+            font-family:sans-serif;
+            box-shadow:0 2px 8px rgba(0,0,0,.12);
+            flex-shrink:0;
+          ">
+            <!-- barra verde topo -->
+            <div style="background:#004832;height:${barH}px;width:100%;"></div>
+
+            <!-- cabeçalho -->
+            <div style="
+              display:flex;align-items:center;
+              padding:${Math.round(2*scale)}px ${mL}px;
+              height:${hdrH - barH}px;
+              border-bottom:1.5px solid #004832;
+            ">
+              ${logoSrc ? `<img src="${logoSrc}" style="height:${Math.round(12*scale)}px;max-width:${Math.round(40*scale)}px;object-fit:contain;" alt="Logo">` : ''}
+              <div style="margin-left:${Math.round(6*scale)}px;flex:1;overflow:hidden;">
+                <div style="font-weight:800;font-size:${Math.round(9*scale)}px;color:#004832;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}</div>
+                <div style="font-size:${Math.round(6.5*scale)}px;color:#4a7a62;margin-top:${Math.round(1*scale)}px;">${subtitle}</div>
+              </div>
+              <div style="text-align:right;font-size:${Math.round(5.5*scale)}px;color:#999;">
+                Pág. ${pageNum}/${totalPages}
+              </div>
+            </div>
+
+            <!-- área de conteúdo -->
+            <div style="
+              position:absolute;
+              left:${mL}px;top:${hdrH}px;
+              width:${innerW}px;height:${innerH}px;
+              display:flex;flex-direction:column;gap:${Math.round(3*scale)}px;
+              padding-top:${Math.round(3*scale)}px;
+            ">
+              ${isChartPage ? `
+                <div style="font-size:${Math.round(6*scale)}px;font-weight:700;color:#004832;">
+                  Gráfico de Telemetria dos Sensores
+                </div>
+                <div style="
+                  flex:1;border:1px solid #b8d4c4;border-radius:2px;overflow:hidden;
+                  background:#f7faf8;display:flex;align-items:center;justify-content:center;
+                ">
+                  ${chartImg
+                    ? `<img src="${chartImg}" style="width:100%;height:100%;object-fit:contain;" alt="Gráfico">`
+                    : `<span style="font-size:${Math.round(6*scale)}px;color:#aaa;">GRÁFICO DE TELEMETRIA</span>`
+                  }
+                </div>
+              ` : `
+                <div style="font-size:${Math.round(6*scale)}px;font-weight:700;color:#004832;">
+                  Resumo Estatístico dos Sensores Monitorados
+                </div>
+                <!-- Cabeçalho tabela -->
+                <div style="background:#004832;display:grid;grid-template-columns:3fr 2fr 1fr 1.2fr 1.2fr 1.2fr 1.2fr;
+                  padding:${Math.round(2*scale)}px ${Math.round(2*scale)}px;border-radius:2px 2px 0 0;">
+                  ${['Sensor','Tipo','Un.','Mín','Máx','Média','Última'].map(c =>
+                    `<span style="font-size:${Math.round(5*scale)}px;color:#fff;font-weight:700;">${c}</span>`
+                  ).join('')}
+                </div>
+                <!-- Linhas da tabela -->
+                ${activeSensors.slice(0, Math.floor(innerH / Math.round(ROW_H_PX = 5.2 * scale))).map((s, i) => `
+                  <div style="display:grid;grid-template-columns:3fr 2fr 1fr 1.2fr 1.2fr 1.2fr 1.2fr;
+                    padding:${Math.round(1.5*scale)}px ${Math.round(2*scale)}px;
+                    background:${i%2===0?'#f0f7f3':'#fff'};align-items:center;">
+                    <span style="font-size:${Math.round(4.8*scale)}px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:flex;align-items:center;gap:${Math.round(2*scale)}px;">
+                      <span style="width:${Math.round(4*scale)}px;height:${Math.round(4*scale)}px;border-radius:50%;background:${s.color||'#24b35a'};flex-shrink:0;"></span>
+                      ${s.name}
+                    </span>
+                    ${[s.group||'-', s.unit||'-',
+                       (s.stats&&s.stats.min!==undefined?Number(s.stats.min).toFixed(1):'-'),
+                       (s.stats&&s.stats.max!==undefined?Number(s.stats.max).toFixed(1):'-'),
+                       (s.stats&&s.stats.avg!==undefined?Number(s.stats.avg).toFixed(1):'-'),
+                       (s.stats&&s.stats.last!==undefined?Number(s.stats.last).toFixed(1):'-')
+                      ].map(v => `<span style="font-size:${Math.round(4.8*scale)}px;">${v}</span>`).join('')}
+                  </div>
+                `).join('')}
+              `}
+            </div>
+
+            <!-- rodapé -->
+            <div style="
+              position:absolute;bottom:0;left:0;right:0;
+              height:${ftrH}px;
+              border-top:1px solid #d0e5da;
+              display:flex;align-items:center;justify-content:space-between;
+              padding:0 ${mL}px;
+              background:#fff;
+            ">
+              <span style="font-size:${Math.round(4.5*scale)}px;color:#aaa;">Koppert Brasil • Parceiros com a Natureza</span>
+              <span style="font-size:${Math.round(4.5*scale)}px;color:#aaa;">Pág ${pageNum}/${totalPages}</span>
+            </div>
+          </div>
+        `;
+      };
+
+      // Montar todas as páginas
+      let pagesHtml = buildPage(1, true);
+      for (let p = 2; p <= totalPages; p++) {
+        pagesHtml += buildPage(p, false);
       }
+
+      container.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:16px;align-items:center;padding:8px 0;
+          max-height:520px;overflow-y:auto;">
+          ${pagesHtml}
+        </div>
+      `;
+
+      // Manter referência ao pageMockup para compatibilidade (aponta para o primeiro .preview-page)
+      this.pageMockup = container.querySelector('.preview-page');
     }
 
     async downloadPDF() {
