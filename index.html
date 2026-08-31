@@ -3,15 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Koppert - Telemetria CSV to PDF & Gráficos Interativos</title>
-  <meta name="description" content="Visualizador de telemetria Koppert: conversão modular de arquivos CSV para gráficos interativos de alta precisão e exportação de relatórios corporativos em PDF.">
+  <title>Koppert Brasil | Telemetria CSV to PDF & Gráficos Interativos</title>
+  <meta name="description" content="Koppert Biological Systems - Sistema de Telemetria, Normalização de Sensores e Exportação de Relatórios Corporativos em PDF.">
   
+  <!-- Favicon Koppert -->
+  <link rel="icon" type="image/png" href="https://www.koppert.com.br/typo3conf/ext/site_template/Resources/Public/Img/Icons/fav/favicon-32x32.png">
+
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   
-  <!-- CSS Styles -->
+  <!-- CSS Styles Koppert Theme -->
   <link rel="stylesheet" href="css/style.css">
 
   <!-- Apache ECharts -->
@@ -22,25 +25,44 @@
 </head>
 <body>
 
-  <!-- Top Header -->
+  <!-- Top Bar Koppert Style -->
+  <div class="app-topbar">
+    <div class="topbar-container">
+      <div class="topbar-tagline">
+        <span>Koppert Biological Systems</span>
+        <span class="dot"></span>
+        <span>Parceiros com a Natureza &bull; Partners with Nature</span>
+      </div>
+      <div class="topbar-meta">
+        <span>Brasil 🇧🇷</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Navigation / Header -->
   <header class="app-header">
     <div class="header-container">
       <div class="logo-area">
-        <div class="brand-badge">KOPPERT</div>
+        <div class="brand-logo-wrapper">
+          <div class="koppert-logo-box">
+            <span class="brand-name">KOPPERT</span>
+            <span class="brand-sub">BRASIL</span>
+          </div>
+        </div>
         <div class="logo-title">
-          <h1>Telemetria & Gráficos CSV</h1>
-          <p>Conversão, Normalização e Exportação de PDF Corporativo</p>
+          <h1>Telemetria & Gráficos de Sensores</h1>
+          <p>Conversão, Normalização de Escalas e Exportação em PDF</p>
         </div>
       </div>
       
       <div class="header-actions">
-        <button id="btn-load-sample" class="btn btn-outline btn-sm" title="Carregar arquivo de exemplo logs (3).csv">
+        <button id="btn-load-sample" class="btn btn-outline btn-sm" title="Carregar arquivo de teste logs (3).csv">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-          Carregar Exemplo
+          Carregar Exemplo (logs)
         </button>
         <button id="btn-open-history" class="btn btn-outline btn-sm">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-          Histórico em Nuvem
+          Histórico na Nuvem
         </button>
         <button id="btn-toggle-theme" class="btn btn-outline btn-sm" title="Alternar Tema Claro/Escuro">
           <span id="theme-icon">🌙</span>
@@ -57,9 +79,11 @@
       <div id="dropzone" class="dropzone">
         <input type="file" id="file-input" accept=".csv,text/csv,text/plain" style="display: none;">
         <div class="dropzone-content">
-          <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-          <div class="dropzone-title">Arraste e solte o arquivo CSV aqui ou clique para selecionar</div>
-          <div class="dropzone-subtitle">Suporta arquivos de sensores (Temperatura, Umidade, CO₂, Pressão) com ajuste automático de escalas</div>
+          <div class="dropzone-icon-circle">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          </div>
+          <div class="dropzone-title">Arraste e solte o arquivo CSV aqui ou clique na área</div>
+          <div class="dropzone-subtitle">Suporte dinâmico a múltiplos sensores (Temperatura °C, Umidade %, CO₂ PPM, Pressão Pa) com auto-ajuste de grandezas</div>
           
           <div class="dropzone-actions">
             <button id="btn-browse-file" type="button" class="btn btn-primary">
@@ -91,7 +115,7 @@
           </div>
         </div>
         <div>
-          <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-right: 6px;">Escala de Dados:</label>
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Escala de Dados:</label>
           <select id="scale-mode-select" class="form-select">
             <option value="auto" selected>Auto (Ajuste 10⁶: 21700000 -> 21.7)</option>
             <option value="1e6">Dividir sempre por 1.000.000 (10⁶)</option>
@@ -105,8 +129,8 @@
     <section id="sensors-section" class="card sensors-container" style="display: none;">
       <div class="sensors-header">
         <div>
-          <h3 style="font-size: 1rem; font-weight: 700;">Sensores Disponíveis</h3>
-          <p style="font-size: 0.75rem; color: var(--text-secondary);">Marque ou desmarque os sensores para customizar a exibição das curvas no gráfico:</p>
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--koppert-green);">Painel Modular de Sensores</h3>
+          <p style="font-size: 0.78rem; color: var(--text-secondary);">Marque ou desmarque os sensores para customizar a exibição das curvas no gráfico:</p>
         </div>
         <div class="sensors-actions">
           <button id="btn-select-all" class="btn btn-outline btn-sm">Selecionar Todos</button>
@@ -120,7 +144,7 @@
 
       <!-- Categories Container -->
       <div id="sensor-categories" class="sensor-categories">
-        <!-- Renderizado dinamicamente via app.js -->
+        <!-- Renderizado dinamicamente via JS -->
       </div>
     </section>
 
@@ -149,12 +173,12 @@
 
       <!-- Statistics Table Section -->
       <div class="stats-table-wrapper">
-        <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem;">Resumo Estatístico dos Sensores em Exibição</h4>
+        <h4 style="font-size: 0.85rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--koppert-green);">Resumo Estatístico dos Sensores Monitorados</h4>
         <table class="stats-table">
           <thead>
             <tr>
               <th>Sensor</th>
-              <th>Tipo</th>
+              <th>Grandeza</th>
               <th>Unidade</th>
               <th>Mínimo</th>
               <th>Máximo</th>
@@ -163,7 +187,7 @@
             </tr>
           </thead>
           <tbody id="stats-table-body">
-            <!-- Preenchido via app.js -->
+            <!-- Preenchido dinamicamente -->
           </tbody>
         </table>
       </div>
@@ -175,7 +199,7 @@
   <div id="pdf-modal" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>Designer do Relatório PDF Corporativo</h3>
+        <h3>Designer do Relatório PDF Corporativo Koppert</h3>
         <button id="btn-close-pdf-modal" class="modal-close">&times;</button>
       </div>
 
@@ -184,14 +208,14 @@
           
           <!-- Formulário de Configuração do PDF -->
           <div class="pdf-controls-pane">
-            <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--primary);">Personalização do Cabeçalho & Conteúdo</h4>
+            <h4 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 0.75rem; color: var(--koppert-green);">Personalização do Cabeçalho & Conteúdo</h4>
             
             <div class="form-group">
-              <label>Logo do Cabeçalho (Customizável):</label>
+              <label>Foto / Logo do Cabeçalho (Customizável):</label>
               <div style="display: flex; gap: 0.5rem; align-items: center;">
                 <input type="file" id="pdf-logo-input" accept="image/*" style="display: none;">
-                <button type="button" id="btn-upload-logo" class="btn btn-outline btn-sm">Trocar Logo / Foto</button>
-                <button type="button" id="btn-reset-logo" class="btn btn-outline btn-sm">Restaurar Padrão</button>
+                <button type="button" id="btn-upload-logo" class="btn btn-outline btn-sm">Trocar Foto / Logo</button>
+                <button type="button" id="btn-reset-logo" class="btn btn-outline btn-sm">Restaurar Logo Koppert</button>
               </div>
             </div>
 
@@ -202,13 +226,13 @@
 
             <div class="form-group">
               <label>Subtítulo / Unidade:</label>
-              <input type="text" id="pdf-subtitle-input" class="form-input" value="Koppert Biological Systems - Análise Gráfica de Sensores">
+              <input type="text" id="pdf-subtitle-input" class="form-input" value="Koppert Brasil - Proteção Biológica das Culturas">
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label>Responsável / Operador:</label>
-                <input type="text" id="pdf-resp-input" class="form-input" placeholder="Ex: Eng. Victor Mota">
+                <label>Responsável Técnico:</label>
+                <input type="text" id="pdf-resp-input" class="form-input" placeholder="Ex: Eng. Agrônomo / Técnico">
               </div>
               <div class="form-group">
                 <label>Orientação da Folha:</label>
@@ -221,10 +245,10 @@
 
             <div class="form-group">
               <label>Observações / Parecer Técnico:</label>
-              <input type="text" id="pdf-notes-input" class="form-input" placeholder="Ex: Todos os parâmetros dentro da normalidade operacional.">
+              <input type="text" id="pdf-notes-input" class="form-input" placeholder="Ex: Todos os parâmetros operando dentro da normalidade recomendada.">
             </div>
 
-            <h4 style="font-size: 0.9rem; font-weight: 700; margin: 0.75rem 0 0.5rem 0; color: var(--primary);">Margens da Página (mm)</h4>
+            <h4 style="font-size: 0.9rem; font-weight: 800; margin: 0.75rem 0 0.5rem 0; color: var(--koppert-green);">Margens da Página (mm)</h4>
             <div class="form-row">
               <div class="form-group">
                 <label>Superior / Inferior (mm):</label>
@@ -237,7 +261,7 @@
             </div>
 
             <div class="form-group" style="margin-top: 0.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.825rem; font-weight: 600;">
                 <input type="checkbox" id="pdf-include-table" checked>
                 Incluir Tabela Resumo com Mínimos, Máximos e Médias no PDF
               </label>
@@ -261,7 +285,7 @@
                   <img id="mockup-logo-img" class="mockup-logo-img" alt="Logo">
                   <div style="flex: 1; margin-left: 8px;">
                     <div id="mockup-title-text" class="mockup-title-text">RELATÓRIO DE TELEMETRIA</div>
-                    <div id="mockup-subtitle-text" class="mockup-subtitle-text">Koppert Biological Systems</div>
+                    <div id="mockup-subtitle-text" class="mockup-subtitle-text">Koppert Brasil</div>
                   </div>
                 </div>
 
@@ -278,12 +302,12 @@
 
                 <!-- Rodapé -->
                 <div class="mockup-footer">
-                  <span>Koppert Biological Systems</span>
+                  <span>Koppert Brasil • Parceiros com a Natureza</span>
                   <span>Página 1 de 1</span>
                 </div>
               </div>
             </div>
-            <p style="font-size: 0.7rem; color: var(--text-secondary); text-align: center;">A linha tracejada verde indica os limites das margens configuradas</p>
+            <p style="font-size: 0.72rem; color: var(--text-secondary); text-align: center;">A linha tracejada verde indica os limites das margens configuradas</p>
           </div>
 
         </div>
@@ -308,7 +332,7 @@
       </div>
       <div class="modal-body">
         <div id="history-list" class="history-list">
-          <!-- Lista carregada via app.js -->
+          <!-- Lista carregada via JS -->
         </div>
       </div>
       <div class="modal-footer">
@@ -322,10 +346,10 @@
 
   <!-- Footer -->
   <footer class="app-footer">
-    <p>Koppert Biological Systems &bull; Conversor de CSV para Gráficos e Relatórios em PDF &bull; 2026</p>
+    <p><strong>Koppert Brasil</strong> &bull; Proteção Biológica das Culturas &bull; Parceiros com a Natureza &bull; 2026</p>
   </footer>
 
-  <!-- Main Application Script (ESM) -->
-  <script type="module" src="js/app.js"></script>
+  <!-- Universal JavaScript Bundle (funciona em file:/// e HTTP) -->
+  <script src="js/app.bundle.js"></script>
 </body>
 </html>
