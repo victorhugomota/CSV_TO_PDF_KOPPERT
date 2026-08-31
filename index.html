@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Koppert - Telemetria CSV to PDF & Gráficos Interativos</title>
+  <meta name="description" content="Visualizador de telemetria Koppert: conversão modular de arquivos CSV para gráficos interativos de alta precisão e exportação de relatórios corporativos em PDF.">
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- CSS Styles -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Apache ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo-area">
+        <div class="brand-badge">KOPPERT</div>
+        <div class="logo-title">
+          <h1>Telemetria & Gráficos CSV</h1>
+          <p>Conversão, Normalização e Exportação de PDF Corporativo</p>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <button id="btn-load-sample" class="btn btn-outline btn-sm" title="Carregar arquivo de exemplo logs (3).csv">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+          Carregar Exemplo
+        </button>
+        <button id="btn-open-history" class="btn btn-outline btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Histórico em Nuvem
+        </button>
+        <button id="btn-toggle-theme" class="btn btn-outline btn-sm" title="Alternar Tema Claro/Escuro">
+          <span id="theme-icon">🌙</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-main">
+
+    <!-- Upload Zone -->
+    <section class="card upload-section">
+      <div id="dropzone" class="dropzone">
+        <input type="file" id="file-input" accept=".csv,text/csv,text/plain" style="display: none;">
+        <div class="dropzone-content">
+          <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <div class="dropzone-title">Arraste e solte o arquivo CSV aqui ou clique para selecionar</div>
+          <div class="dropzone-subtitle">Suporta arquivos de sensores (Temperatura, Umidade, CO₂, Pressão) com ajuste automático de escalas</div>
+          
+          <div class="dropzone-actions">
+            <button id="btn-browse-file" type="button" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Selecionar Arquivo CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Details Bar -->
+      <div id="file-info-bar" class="file-info-bar" style="display: none;">
+        <div class="file-info-details">
+          <div class="info-item">
+            <span class="info-label">Arquivo</span>
+            <span id="info-filename" class="info-value">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Registros</span>
+            <span id="info-rows" class="info-value">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Sensores Detectados</span>
+            <span id="info-sensor-count" class="info-value">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Período</span>
+            <span id="info-time-range" class="info-value">-</span>
+          </div>
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-right: 6px;">Escala de Dados:</label>
+          <select id="scale-mode-select" class="form-select">
+            <option value="auto" selected>Auto (Ajuste 10⁶: 21700000 -> 21.7)</option>
+            <option value="1e6">Dividir sempre por 1.000.000 (10⁶)</option>
+            <option value="raw">Original (Sem conversão)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sensor Selection & Modular Filters -->
+    <section id="sensors-section" class="card sensors-container" style="display: none;">
+      <div class="sensors-header">
+        <div>
+          <h3 style="font-size: 1rem; font-weight: 700;">Sensores Disponíveis</h3>
+          <p style="font-size: 0.75rem; color: var(--text-secondary);">Marque ou desmarque os sensores para customizar a exibição das curvas no gráfico:</p>
+        </div>
+        <div class="sensors-actions">
+          <button id="btn-select-all" class="btn btn-outline btn-sm">Selecionar Todos</button>
+          <button id="btn-select-none" class="btn btn-outline btn-sm">Limpar Todos</button>
+          <button id="btn-filter-temp" class="btn btn-outline btn-sm">Apenas Temp (°C)</button>
+          <button id="btn-filter-umid" class="btn btn-outline btn-sm">Apenas Umid (%)</button>
+          <button id="btn-filter-co2" class="btn btn-outline btn-sm">Apenas CO₂ (PPM)</button>
+          <button id="btn-filter-press" class="btn btn-outline btn-sm">Apenas Pressão (Pa)</button>
+        </div>
+      </div>
+
+      <!-- Categories Container -->
+      <div id="sensor-categories" class="sensor-categories">
+        <!-- Renderizado dinamicamente via app.js -->
+      </div>
+    </section>
+
+    <!-- Chart Section -->
+    <section id="chart-section" class="card chart-card" style="display: none;">
+      <div class="chart-toolbar">
+        <div class="chart-title-area">
+          <h2 id="chart-main-title">Gráfico de Telemetria</h2>
+          <p id="chart-main-subtitle">Navegue na linha do tempo inferior para zoom ou selecione áreas específicas</p>
+        </div>
+        <div class="chart-controls">
+          <button id="btn-save-cloud" class="btn btn-outline btn-sm" title="Salvar cópia deste gráfico no Firestore">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Salvar na Nuvem
+          </button>
+          <button id="btn-open-pdf-designer" class="btn btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Configurar & Exportar PDF
+          </button>
+        </div>
+      </div>
+
+      <div id="chart-wrapper">
+        <div id="main-chart"></div>
+      </div>
+
+      <!-- Statistics Table Section -->
+      <div class="stats-table-wrapper">
+        <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem;">Resumo Estatístico dos Sensores em Exibição</h4>
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Sensor</th>
+              <th>Tipo</th>
+              <th>Unidade</th>
+              <th>Mínimo</th>
+              <th>Máximo</th>
+              <th>Média</th>
+              <th>Última Leitura</th>
+            </tr>
+          </thead>
+          <tbody id="stats-table-body">
+            <!-- Preenchido via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PDF Designer & Export Modal -->
+  <div id="pdf-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Designer do Relatório PDF Corporativo</h3>
+        <button id="btn-close-pdf-modal" class="modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="pdf-designer-grid">
+          
+          <!-- Formulário de Configuração do PDF -->
+          <div class="pdf-controls-pane">
+            <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--primary);">Personalização do Cabeçalho & Conteúdo</h4>
+            
+            <div class="form-group">
+              <label>Logo do Cabeçalho (Customizável):</label>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="file" id="pdf-logo-input" accept="image/*" style="display: none;">
+                <button type="button" id="btn-upload-logo" class="btn btn-outline btn-sm">Trocar Logo / Foto</button>
+                <button type="button" id="btn-reset-logo" class="btn btn-outline btn-sm">Restaurar Padrão</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Título do Relatório:</label>
+              <input type="text" id="pdf-title-input" class="form-input" value="RELATÓRIO DE MONITORAMENTO E TELEMETRIA">
+            </div>
+
+            <div class="form-group">
+              <label>Subtítulo / Unidade:</label>
+              <input type="text" id="pdf-subtitle-input" class="form-input" value="Koppert Biological Systems - Análise Gráfica de Sensores">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Responsável / Operador:</label>
+                <input type="text" id="pdf-resp-input" class="form-input" placeholder="Ex: Eng. Victor Mota">
+              </div>
+              <div class="form-group">
+                <label>Orientação da Folha:</label>
+                <select id="pdf-orientation-select" class="form-select">
+                  <option value="landscape" selected>Paisagem (A4 Landscape)</option>
+                  <option value="portrait">Retrato (A4 Portrait)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Observações / Parecer Técnico:</label>
+              <input type="text" id="pdf-notes-input" class="form-input" placeholder="Ex: Todos os parâmetros dentro da normalidade operacional.">
+            </div>
+
+            <h4 style="font-size: 0.9rem; font-weight: 700; margin: 0.75rem 0 0.5rem 0; color: var(--primary);">Margens da Página (mm)</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Superior / Inferior (mm):</label>
+                <input type="number" id="pdf-margin-v" class="form-input" value="12" min="5" max="30">
+              </div>
+              <div class="form-group">
+                <label>Esquerda / Direita (mm):</label>
+                <input type="number" id="pdf-margin-h" class="form-input" value="15" min="5" max="30">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" id="pdf-include-table" checked>
+                Incluir Tabela Resumo com Mínimos, Máximos e Médias no PDF
+              </label>
+            </div>
+          </div>
+
+          <!-- Preview Visual da Folha A4 com Margens -->
+          <div class="page-mockup-container">
+            <div class="page-mockup-label">
+              <span>Pré-visualização do Layout da Folha A4</span>
+              <span id="preview-dim-label">Paisagem (297 x 210 mm)</span>
+            </div>
+            
+            <div class="page-mockup-wrapper">
+              <div id="page-mockup" class="page-mockup">
+                <!-- Linhas guia de margens editáveis -->
+                <div id="mockup-guide" class="mockup-margins-guide"></div>
+
+                <!-- Cabeçalho do mockup -->
+                <div class="mockup-header">
+                  <img id="mockup-logo-img" class="mockup-logo-img" alt="Logo">
+                  <div style="flex: 1; margin-left: 8px;">
+                    <div id="mockup-title-text" class="mockup-title-text">RELATÓRIO DE TELEMETRIA</div>
+                    <div id="mockup-subtitle-text" class="mockup-subtitle-text">Koppert Biological Systems</div>
+                  </div>
+                </div>
+
+                <!-- Área reservada do gráfico -->
+                <div id="mockup-chart-area" class="mockup-chart-area">
+                  <span>ÁREA RESERVADA DO GRÁFICO</span>
+                </div>
+
+                <!-- Área da tabela -->
+                <div id="mockup-stats-area" class="mockup-stats-area">
+                  <strong>Tabela Resumo Estatístico dos Sensores</strong>
+                  <div style="color:#64748b; margin-top:2px;">Temp: °C • Umid: % • CO2: PPM • Pressão: Pa</div>
+                </div>
+
+                <!-- Rodapé -->
+                <div class="mockup-footer">
+                  <span>Koppert Biological Systems</span>
+                  <span>Página 1 de 1</span>
+                </div>
+              </div>
+            </div>
+            <p style="font-size: 0.7rem; color: var(--text-secondary); text-align: center;">A linha tracejada verde indica os limites das margens configuradas</p>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-cancel-pdf" class="btn btn-outline">Cancelar</button>
+        <button id="btn-download-pdf-now" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Baixar Relatório PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase History Modal -->
+  <div id="history-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>Histórico de Gráficos Salvos na Nuvem</h3>
+        <button id="btn-close-history-modal" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="history-list" class="history-list">
+          <!-- Lista carregada via app.js -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-close-history" class="btn btn-outline">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div id="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>Koppert Biological Systems &bull; Conversor de CSV para Gráficos e Relatórios em PDF &bull; 2026</p>
+  </footer>
+
+  <!-- Main Application Script (ESM) -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
