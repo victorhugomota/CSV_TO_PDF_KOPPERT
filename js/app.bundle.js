@@ -838,52 +838,180 @@
   }
 
   // -------------------------------------------------------------
-  // 4. FIREBASE & CLOUD HISTORY (Apenas sob demanda do usuário)
+  // 4. FIREBASE & CLOUD HISTORY (Firestore REST API 100% Universal)
   // -------------------------------------------------------------
   class FirebaseHistoryService {
     constructor() {
+      this.projectId = "koppertcvstopdf";
+      this.apiKey = "AIzaSyCVIK1h3PFb_4PGAmDiGTNDmggT00uvgsQ";
       this.collectionName = "graficos_historico";
+      this.baseUrl = `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents/${this.collectionName}`;
     }
 
+    /**
+     * Salva o gráfico e dados brutos no Firebase Firestore na nuvem
+     */
     async saveChartHistory(record) {
-      const dataToSave = {
-        filename: record.filename || 'dados_telemetria.csv',
-        createdAt: new Date().toISOString(),
-        totalRows: record.totalRows || 0,
-        sensorCount: record.sensors ? record.sensors.length : 0,
-        sensorsSummary: (record.sensors || []).map(s => ({
-          name: s.name,
-          type: s.type,
-          unit: s.unit,
-          stats: s.stats || null
-        })),
-        csvData: record.csvRaw ? record.csvRaw.substring(0, 500000) : ''
+      const isoDate = new Date().toISOString();
+      const filename = record.filename || 'dados_telemetria.csv';
+      const totalRows = Number(record.totalRows || 0);
+      const sensorCount = Number(record.sensors ? record.sensors.length : 0);
+      const sensorsSummary = (record.sensors || []).map(s => ({
+        name: s.name,
+        type: s.type,
+        unit: s.unit,
+        color: s.color,
+        stats: s.stats || null
+      }));
+      // Limite seguro de 800KB para documento Firestore
+      const csvData = record.csvRaw ? String(record.csvRaw).substring(0, 800000) : '';
+
+      const firestoreBody = {
+        fields: {
+          filename: { stringValue: filename },
+          createdAt: { stringValue: isoDate },
+          totalRows: { integerValue: String(totalRows) },
+          sensorCount: { integerValue: String(sensorCount) },
+          sensorsSummary: { stringValue: JSON.stringify(sensorsSummary) },
+          csvData: { stringValue: csvData }
+        }
       };
 
-      this.saveToLocalCache(dataToSave);
-      return { success: true, id: 'local_' + Date.now(), source: 'local' };
+      // Sempre salva também em cache local como fallback
+      const localRecord = {
+        filename,
+        createdAt: isoDate,
+        totalRows,
+        sensorCount,
+        sensorsSummary,
+        csvData
+      };
+      this.saveToLocalCache(localRecord);
+
+      try {
+        const response = await fetch(`${this.baseUrl}?key=${this.apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(firestoreBody)
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn('Erro ao salvar no Firestore:', response.status, errText);
+          return { success: true, id: 'local_' + Date.now(), source: 'local' };
+        }
+
+        const data = await response.json();
+        const docId = data.name ? data.name.split('/').pop() : 'cloud_' + Date.now();
+        console.log('✅ Gráfico salvo com sucesso no Firebase Firestore:', docId);
+        return { success: true, id: docId, source: 'firestore' };
+      } catch (err) {
+        console.warn('Falha de rede ao conectar com Firestore. Salvo em cache local:', err);
+        return { success: true, id: 'local_' + Date.now(), source: 'local' };
+      }
     }
 
+    /**
+     * Carrega a lista de gráficos salvos no Firebase Firestore
+     */
     async loadHistory() {
+      const results = [];
+
+      // 1. Busca documentos do Firebase Firestore
+      try {
+        const response = await fetch(`${this.baseUrl}?key=${this.apiKey}&pageSize=50`);
+        if (response.ok) {
+          const data = await response.json();
+          const docs = data.documents || [];
+
+          docs.forEach(docSnap => {
+            const fields = docSnap.fields || {};
+            const docId = docSnap.name ? docSnap.name.split('/').pop() : '';
+
+            let summary = [];
+            if (fields.sensorsSummary && fields.sensorsSummary.stringValue) {
+              try {
+                summary = JSON.parse(fields.sensorsSummary.stringValue);
+              } catch (e) {}
+            }
+
+            results.push({
+              id: docId,
+              filename: (fields.filename && fields.filename.stringValue) || 'dados_telemetria.csv',
+              createdAt: (fields.createdAt && fields.createdAt.stringValue) || new Date().toISOString(),
+              totalRows: parseInt((fields.totalRows && fields.totalRows.integerValue) || '0'),
+              sensorCount: parseInt((fields.sensorCount && fields.sensorCount.integerValue) || '0'),
+              sensorsSummary: summary,
+              csvData: (fields.csvData && fields.csvData.stringValue) || '',
+              source: 'firestore'
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Não foi possível carregar do Firestore via rede:', err);
+      }
+
+      // 2. Mescla itens de cache local que ainda não foram sincronizados
       const localItems = this.loadFromLocalCache();
-      return localItems.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      localItems.forEach(localItem => {
+        if (!results.find(r => r.createdAt === localItem.createdAt || r.id === localItem.id)) {
+          results.push({ ...localItem, source: 'local' });
+        }
+      });
+
+      // 3. Ordena do mais recente para o mais antigo
+      return results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
 
-    async deleteItem(id) {
+    /**
+     * Exclui um item do Firestore e do cache local
+     */
+    async deleteItem(id, source = 'firestore') {
+      if (source === 'firestore' && id && !id.startsWith('local_')) {
+        try {
+          await fetch(`${this.baseUrl}/${id}?key=${this.apiKey}`, {
+            method: 'DELETE'
+          });
+          console.log('✅ Documento removido do Firestore:', id);
+        } catch (e) {
+          console.warn('Erro ao deletar documento no Firestore:', e);
+        }
+      }
       this.deleteFromLocalCache(id);
       return true;
     }
 
+    // ── Cache Local (Fallback Offline) ──
     saveToLocalCache(record) {
       try {
         const existing = this.loadFromLocalCache();
-        const newRecord = { ...record, id: 'local_' + Date.now() };
+        const newRecord = { ...record, id: record.id || ('local_' + Date.now()) };
         existing.unshift(newRecord);
         localStorage.setItem('koppert_charts_history', JSON.stringify(existing.slice(0, 30)));
       } catch (e) {
         console.warn('Erro localStorage:', e);
       }
     }
+
+    loadFromLocalCache() {
+      try {
+        const data = localStorage.getItem('koppert_charts_history');
+        return data ? JSON.parse(data) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    deleteFromLocalCache(id) {
+      try {
+        let existing = this.loadFromLocalCache();
+        existing = existing.filter(item => item.id !== id);
+        localStorage.setItem('koppert_charts_history', JSON.stringify(existing));
+      } catch (e) {
+        console.warn('Erro ao deletar do localStorage:', e);
+      }
+    }
+  }
 
     loadFromLocalCache() {
       try {
@@ -1256,7 +1384,7 @@
         this.showToast('Nenhum dado carregado para salvar!', 'warning');
         return;
       }
-      this.showToast('Salvando gráfico no Firebase Firestore...', 'info');
+      this.showToast('Salvando gráfico no Firebase Firestore na nuvem...', 'info');
       const res = await this.firebaseService.saveChartHistory({
         filename: this.currentFilename || 'dados_telemetria.csv',
         totalRows: this.currentDataset.totalRows,
@@ -1264,37 +1392,55 @@
         csvRaw: this.currentRawCSV
       });
 
-      if (res.success) {
-        this.showToast('Gráfico salvo na nuvem com sucesso!', 'success');
+      if (res && res.source === 'firestore') {
+        this.showToast('✅ Gráfico salvo na nuvem com sucesso! Disponível em qualquer dispositivo.', 'success');
+      } else {
+        this.showToast('Gráfico salvo no histórico local.', 'success');
       }
     }
 
     async openHistoryModal() {
       if (!this.historyModal) return;
       this.historyModal.classList.add('open');
-      this.historyList.innerHTML = `<div class="empty-state">Carregando histórico do Firebase...</div>`;
+      this.historyList.innerHTML = `<div class="empty-state" style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">☁️</div>
+        Buscando gráficos no Firebase Firestore na nuvem...
+      </div>`;
 
       const items = await this.firebaseService.loadHistory();
       if (!items || items.length === 0) {
-        this.historyList.innerHTML = `<div class="empty-state">Nenhum gráfico salvo no histórico ainda. Importe um arquivo CSV e clique em "Salvar na Nuvem"!</div>`;
+        this.historyList.innerHTML = `<div class="empty-state" style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+          <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📂</div>
+          Nenhum gráfico salvo no histórico da nuvem ainda.<br>Importe um arquivo CSV e clique no botão <strong>"Salvar na Nuvem"</strong>!
+        </div>`;
         return;
       }
 
       this.historyList.innerHTML = '';
       items.forEach(item => {
         const date = new Date(item.createdAt);
-        const dateStr = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = !isNaN(date.getTime())
+          ? date.toLocaleDateString('pt-BR') + ' às ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : item.createdAt;
+
+        const isCloud = item.source === 'firestore';
+        const badgeColor = isCloud ? 'background: #d8f3e2; color: #004832;' : 'background: #f1f5f9; color: #64748b;';
+        const badgeText = isCloud ? '☁️ Nuvem Firestore' : '💾 Local';
 
         const div = document.createElement('div');
         div.className = 'history-item';
+        div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1rem; border-bottom: 1px solid var(--border-color); gap: 1rem;';
         div.innerHTML = `
-          <div class="history-details">
-            <h4>${item.filename}</h4>
-            <p>${dateStr} &bull; ${item.totalRows || 0} registros &bull; ${item.sensorCount || (item.sensorsSummary ? item.sensorsSummary.length : 0)} sensores</p>
+          <div class="history-details" style="flex: 1; overflow: hidden;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+              <strong style="font-size: 0.9rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.filename}</strong>
+              <span style="font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; ${badgeColor}">${badgeText}</span>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">${dateStr} &bull; ${item.totalRows || 0} registros &bull; ${item.sensorCount || (item.sensorsSummary ? item.sensorsSummary.length : 0)} sensores</p>
           </div>
-          <div class="history-actions">
-            <button class="btn btn-primary btn-sm btn-load-hist">Carregar</button>
-            <button class="btn btn-outline btn-sm btn-del-hist" title="Excluir">✕</button>
+          <div class="history-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+            <button class="btn btn-primary btn-sm btn-load-hist">Abrir Gráfico</button>
+            <button class="btn btn-outline btn-sm btn-del-hist" title="Excluir da Nuvem" style="color: var(--danger);">✕</button>
           </div>
         `;
 
@@ -1304,16 +1450,18 @@
             this.currentFilename = item.filename;
             this.parseAndRender(item.csvData, item.filename);
             this.closeHistoryModal();
-            this.showToast(`Gráfico "${item.filename}" carregado do histórico!`, 'success');
+            this.showToast(`Gráfico "${item.filename}" carregado da nuvem!`, 'success');
           } else {
             this.showToast('Os dados brutos deste registro não estão disponíveis.', 'warning');
           }
         });
 
         div.querySelector('.btn-del-hist').addEventListener('click', async () => {
-          await this.firebaseService.deleteItem(item.id);
-          div.remove();
-          this.showToast('Item excluído do histórico.', 'info');
+          if (confirm(`Deseja realmente excluir "${item.filename}" do histórico?`)) {
+            await this.firebaseService.deleteItem(item.id, item.source);
+            div.remove();
+            this.showToast('Gráfico excluído do histórico.', 'info');
+          }
         });
 
         this.historyList.appendChild(div);
