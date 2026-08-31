@@ -1,6 +1,6 @@
 /**
- * Koppert Telemetria CSV to PDF - Bundle Completo e Universal
- * Funciona tanto via file:/// (dois cliques locais) quanto via servidor web / GitHub Pages / Firebase!
+ * Koppert Telemetria CSV to PDF - Bundle Universal
+ * Layout Oficial Koppert Brasil, Ajuste de Gráfico Instantâneo e Salvamento Exclusivo sob Demanda
  */
 
 (function () {
@@ -55,7 +55,7 @@
       return this.SENSOR_TYPES.OTHER;
     }
 
-    static normalizeValue(rawValue, sensorType, scaleMode = 'auto') {
+    static normalizeValue(rawValue, sensorType) {
       if (rawValue === null || rawValue === undefined || rawValue === '') {
         return null;
       }
@@ -70,18 +70,8 @@
       const num = parseFloat(strVal);
       if (isNaN(num)) return null;
 
-      if (scaleMode === '1e6') {
-        return num / 1000000;
-      }
-      if (scaleMode === '1e3') {
-        return num / 1000;
-      }
-      if (scaleMode === 'raw') {
-        return num;
-      }
-
-      // Modo 'auto':
-      // Converte valores brutos como 21700000 -> 21.7, 71600000 -> 71.6, 350000000 -> 350
+      // Auto-ajuste de escala com 6 casas decimais implícitas (10⁶)
+      // Ex: 21700000 -> 21.7 (°C), 71600000 -> 71.6 (%), 350000000 -> 350 (PPM)
       const abs = Math.abs(num);
       if (sensorType.type === 'temperature' && abs > 500) {
         return num / 1000000;
@@ -111,7 +101,6 @@
         return timestamp;
       }
 
-      // Suporte a DD/MM/YYYY HH:mm:ss
       const brRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/;
       const match = clean.match(brRegex);
       if (match) {
@@ -161,12 +150,12 @@
 
     static generatePalette(count) {
       const curatedColors = [
-        '#004832', '#38b349', '#007a3d', '#2563eb', '#ef4444',
-        '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#10b981',
-        '#f97316', '#6366f1', '#14b8a6', '#e11d48', '#84cc16',
-        '#a855f7', '#0284c7', '#d97706', '#059669', '#7c3aed',
-        '#db2777', '#2563eb', '#65a30d', '#c026d3', '#0891b2',
-        '#ea580c', '#4f46e5', '#16a34a', '#9333ea', '#eab308'
+        '#005a3c', '#24b35a', '#3b82f6', '#ef4444', '#f59e0b',
+        '#8b5cf6', '#06b6d4', '#ec4899', '#10b981', '#f97316',
+        '#6366f1', '#14b8a6', '#e11d48', '#84cc16', '#a855f7',
+        '#0284c7', '#d97706', '#059669', '#7c3aed', '#db2777',
+        '#2563eb', '#65a30d', '#c026d3', '#0891b2', '#ea580c',
+        '#4f46e5', '#16a34a', '#9333ea', '#eab308', '#0284c7'
       ];
 
       if (count <= curatedColors.length) {
@@ -181,10 +170,9 @@
       return colors;
     }
 
-    static parse(csvText, options = {}) {
+    static parse(csvText) {
       const cleanText = (csvText || '').replace(/^\uFEFF/, '');
-      const scaleMode = options.scaleMode || 'auto';
-      const delimiter = options.delimiter || this.detectDelimiter(cleanText);
+      const delimiter = this.detectDelimiter(cleanText);
 
       const lines = cleanText.split(/\r\n|\n|\r/).filter(line => line.trim().length > 0);
       if (lines.length < 2) {
@@ -218,7 +206,7 @@
           type: sensorType.type,
           group: sensorType.group,
           unit: sensorType.unit,
-          color: '#004832',
+          color: '#005a3c',
           enabled: true,
           data: []
         });
@@ -251,7 +239,7 @@
 
         sensors.forEach(sensor => {
           const rawVal = row[sensor.columnIndex];
-          const val = this.normalizeValue(rawVal, { type: sensor.type }, scaleMode);
+          const val = this.normalizeValue(rawVal, { type: sensor.type });
           sensor.data.push([timeVal, val]);
         });
       }
@@ -287,7 +275,7 @@
   }
 
   // -------------------------------------------------------------
-  // 2. SENSOR CHART MANAGER (ECharts)
+  // 2. SENSOR CHART MANAGER (ECharts com Auto-Resize Garantido)
   // -------------------------------------------------------------
   class SensorChartManager {
     constructor(containerElement) {
@@ -299,13 +287,23 @@
 
     initECharts() {
       if (typeof echarts === 'undefined') {
-        console.error('Apache ECharts library not loaded!');
+        console.error('Apache ECharts não disponível!');
         return;
       }
       this.chart = echarts.init(this.container, null, {
         renderer: 'canvas',
         useDirtyRect: true
       });
+
+      // Observer de redimensionamento instantâneo
+      if (window.ResizeObserver && this.container) {
+        const ro = new ResizeObserver(() => {
+          if (this.chart) {
+            this.chart.resize();
+          }
+        });
+        ro.observe(this.container);
+      }
 
       window.addEventListener('resize', () => {
         if (this.chart) this.chart.resize();
@@ -315,6 +313,18 @@
     setDataset(parsedData) {
       this.dataset = parsedData;
       this.render();
+
+      // Força redimensionamento imediato e em múltiplos frames para evitar gráfico contraído
+      this.resize();
+      requestAnimationFrame(() => this.resize());
+      setTimeout(() => this.resize(), 50);
+      setTimeout(() => this.resize(), 200);
+    }
+
+    resize() {
+      if (this.chart) {
+        this.chart.resize();
+      }
     }
 
     formatDate(timestamp) {
@@ -334,8 +344,8 @@
       if (!this.chart || !this.dataset) return;
 
       const isDark = document.body.getAttribute('data-theme') === 'dark';
-      const textColor = isDark ? '#94a3b8' : '#475569';
-      const gridLineColor = isDark ? '#334155' : '#e2e8f0';
+      const textColor = isDark ? '#9cb5ab' : '#4a5e54';
+      const gridLineColor = isDark ? '#1f362c' : '#e3ded6';
 
       const activeSensors = this.dataset.sensors.filter(s => s.enabled);
 
@@ -347,7 +357,7 @@
         sampling: 'lttb',
         data: sensor.data,
         lineStyle: {
-          width: 1.5,
+          width: 1.6,
           color: sensor.color
         },
         itemStyle: {
@@ -360,8 +370,8 @@
         backgroundColor: 'transparent',
         grid: {
           top: 35,
-          left: 55,
-          right: 25,
+          left: 60,
+          right: 30,
           bottom: 80,
           containLabel: false
         },
@@ -374,22 +384,23 @@
               type: 'dashed'
             }
           },
-          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          backgroundColor: isDark ? 'rgba(20, 34, 28, 0.96)' : 'rgba(255, 255, 255, 0.96)',
           borderColor: '#004832',
-          borderWidth: 1,
+          borderWidth: 1.5,
+          padding: [10, 14],
           textStyle: {
-            color: isDark ? '#f8fafc' : '#1e293b',
+            color: isDark ? '#f0f7f4' : '#0f241a',
             fontSize: 12
           },
           formatter: (params) => {
             if (!params || !params.length) return '';
             const time = params[0].value[0];
-            let header = `<div style="font-weight:700;margin-bottom:6px;border-bottom:1.5px solid #004832;padding-bottom:3px;color:#004832;">${this.formatDate(time)}</div>`;
+            let header = `<div style="font-weight:800;margin-bottom:6px;border-bottom:1.5px solid #24b35a;padding-bottom:4px;color:#004832;">${this.formatDate(time)}</div>`;
             let rows = params.map(p => {
               const sensor = this.dataset.sensors.find(s => s.name === p.seriesName);
               const unit = sensor ? sensor.unit : '';
               const val = p.value[1] !== null && p.value[1] !== undefined ? Number(p.value[1].toFixed(2)) : 'N/A';
-              return `<div style="display:flex;justify-content:space-between;gap:12px;margin:2px 0;">
+              return `<div style="display:flex;justify-content:space-between;gap:14px;margin:3px 0;">
                 <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};margin-right:6px;"></span>${p.seriesName}:</span>
                 <strong style="color:${p.color}">${val} ${unit}</strong>
               </div>`;
@@ -398,7 +409,7 @@
           }
         },
         toolbox: {
-          right: 25,
+          right: 30,
           top: 0,
           feature: {
             dataZoom: {
@@ -408,7 +419,7 @@
             restore: { title: 'Resetar' },
             saveAsImage: {
               title: 'Salvar Imagem PNG',
-              pixelRatio: 2
+              pixelRatio: 2.5
             }
           },
           iconStyle: {
@@ -471,8 +482,8 @@
             bottom: 10,
             height: 38,
             borderColor: gridLineColor,
-            backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-            fillerColor: 'rgba(0, 72, 50, 0.18)',
+            backgroundColor: isDark ? '#14221c' : '#faf8f5',
+            fillerColor: 'rgba(0, 72, 50, 0.2)',
             handleStyle: {
               color: '#004832',
               borderColor: '#ffffff',
@@ -537,13 +548,11 @@
       canvas.height = 80;
       const ctx = canvas.getContext('2d');
 
-      // Fundo verde Koppert oficial #004832
       ctx.fillStyle = '#004832';
       ctx.beginPath();
       ctx.roundRect(0, 0, 280, 80, 10);
       ctx.fill();
 
-      // Logo estilizada Koppert
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 34px sans-serif';
       ctx.textAlign = 'center';
@@ -551,7 +560,7 @@
       ctx.fillText('KOPPERT', 140, 36);
 
       ctx.font = 'bold 11px sans-serif';
-      ctx.fillStyle = '#38b349';
+      ctx.fillStyle = '#24b35a';
       ctx.fillText('PARTNERS WITH NATURE', 140, 60);
 
       this.defaultLogo = canvas.toDataURL('image/png');
@@ -601,7 +610,7 @@
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
-      doc.setTextColor(0, 72, 50); // Verde Koppert #004832
+      doc.setTextColor(0, 72, 50); // Verde Floresta Koppert
       doc.text(headerTitle, textStartX, currentY + 5);
 
       doc.setFont('helvetica', 'normal');
@@ -734,23 +743,11 @@
   }
 
   // -------------------------------------------------------------
-  // 4. FIREBASE & CLOUD HISTORY SERVICE
+  // 4. FIREBASE & CLOUD HISTORY (Apenas sob demanda do usuário)
   // -------------------------------------------------------------
   class FirebaseHistoryService {
     constructor() {
       this.collectionName = "graficos_historico";
-      this.initFirebase();
-    }
-
-    async initFirebase() {
-      try {
-        // Inicializa Firestore se SDK modular estiver disponível via script
-        if (window.firebase && window.firebase.firestore) {
-          this.db = window.firebase.firestore();
-        }
-      } catch (e) {
-        console.warn('Firestore fallback para cache local:', e);
-      }
     }
 
     async saveChartHistory(record) {
@@ -814,7 +811,7 @@
   }
 
   // -------------------------------------------------------------
-  // 5. APLICAÇÃO PRINCIPAL (APP CONTROLLER)
+  // 5. APLICAÇÃO PRINCIPAL
   // -------------------------------------------------------------
   class KoppertApp {
     constructor() {
@@ -834,21 +831,16 @@
     }
 
     initElements() {
-      // Dropzone e Seleção de Arquivo
       this.dropzone = document.getElementById('dropzone');
       this.fileInput = document.getElementById('file-input');
       this.btnBrowse = document.getElementById('btn-browse-file');
-      this.btnLoadSample = document.getElementById('btn-load-sample');
 
-      // Barra de Informações do Arquivo
       this.fileInfoBar = document.getElementById('file-info-bar');
       this.infoFilename = document.getElementById('info-filename');
       this.infoRows = document.getElementById('info-rows');
       this.infoSensorCount = document.getElementById('info-sensor-count');
       this.infoTimeRange = document.getElementById('info-time-range');
-      this.scaleModeSelect = document.getElementById('scale-mode-select');
 
-      // Seção de Sensores
       this.sensorsSection = document.getElementById('sensors-section');
       this.sensorCategories = document.getElementById('sensor-categories');
       this.btnSelectAll = document.getElementById('btn-select-all');
@@ -858,7 +850,6 @@
       this.btnFilterCo2 = document.getElementById('btn-filter-co2');
       this.btnFilterPress = document.getElementById('btn-filter-press');
 
-      // Gráfico e Estatísticas
       this.chartSection = document.getElementById('chart-section');
       this.chartTitle = document.getElementById('chart-main-title');
       this.chartSubtitle = document.getElementById('chart-main-subtitle');
@@ -866,7 +857,6 @@
       this.btnSaveCloud = document.getElementById('btn-save-cloud');
       this.btnOpenPdfDesigner = document.getElementById('btn-open-pdf-designer');
 
-      // Modal PDF
       this.pdfModal = document.getElementById('pdf-modal');
       this.btnClosePdfModal = document.getElementById('btn-close-pdf-modal');
       this.btnCancelPdf = document.getElementById('btn-cancel-pdf');
@@ -892,14 +882,12 @@
       this.mockupStatsArea = document.getElementById('mockup-stats-area');
       this.previewDimLabel = document.getElementById('preview-dim-label');
 
-      // Modal Histórico
       this.historyModal = document.getElementById('history-modal');
       this.btnOpenHistory = document.getElementById('btn-open-history');
       this.btnCloseHistoryModal = document.getElementById('btn-close-history-modal');
       this.btnCloseHistory = document.getElementById('btn-close-history');
       this.historyList = document.getElementById('history-list');
 
-      // Tema
       this.btnToggleTheme = document.getElementById('btn-toggle-theme');
       this.themeIcon = document.getElementById('theme-icon');
     }
@@ -912,7 +900,6 @@
     }
 
     bindEvents() {
-      // 1. Clique para selecionar arquivo (no botão e em toda a área de dropzone)
       if (this.btnBrowse) {
         this.btnBrowse.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -951,22 +938,7 @@
         });
       }
 
-      // 2. Carregar Exemplo
-      if (this.btnLoadSample) {
-        this.btnLoadSample.addEventListener('click', () => this.loadSampleCSV());
-      }
-
-      // 3. Seletor de Escala
-      if (this.scaleModeSelect) {
-        this.scaleModeSelect.addEventListener('change', () => {
-          if (this.currentRawCSV) {
-            this.parseAndRender(this.currentRawCSV, this.currentFilename);
-            this.showToast('Escala de dados atualizada!', 'info');
-          }
-        });
-      }
-
-      // 4. Filtros de Sensores
+      // Filtros
       if (this.btnSelectAll) {
         this.btnSelectAll.addEventListener('click', () => {
           if (!this.currentDataset) return;
@@ -990,12 +962,12 @@
       if (this.btnFilterCo2) this.btnFilterCo2.addEventListener('click', () => this.filterByType('co2'));
       if (this.btnFilterPress) this.btnFilterPress.addEventListener('click', () => this.filterByType('pressure'));
 
-      // 5. Salvar na Nuvem
+      // Salvar na Nuvem (Apenas quando clicado)
       if (this.btnSaveCloud) {
         this.btnSaveCloud.addEventListener('click', () => this.saveCurrentToCloud());
       }
 
-      // 6. PDF Modal
+      // PDF Modal
       if (this.btnOpenPdfDesigner) this.btnOpenPdfDesigner.addEventListener('click', () => this.openPDFDesigner());
       if (this.btnClosePdfModal) this.btnClosePdfModal.addEventListener('click', () => this.closePDFDesigner());
       if (this.btnCancelPdf) this.btnCancelPdf.addEventListener('click', () => this.closePDFDesigner());
@@ -1018,12 +990,12 @@
       if (this.pdfMarginH) this.pdfMarginH.addEventListener('input', () => this.updatePDFMockup());
       if (this.pdfIncludeTable) this.pdfIncludeTable.addEventListener('change', () => this.updatePDFMockup());
 
-      // 7. Histórico
+      // Histórico
       if (this.btnOpenHistory) this.btnOpenHistory.addEventListener('click', () => this.openHistoryModal());
       if (this.btnCloseHistoryModal) this.btnCloseHistoryModal.addEventListener('click', () => this.closeHistoryModal());
       if (this.btnCloseHistory) this.btnCloseHistory.addEventListener('click', () => this.closeHistoryModal());
 
-      // 8. Tema
+      // Tema
       if (this.btnToggleTheme) this.btnToggleTheme.addEventListener('click', () => this.toggleTheme());
     }
 
@@ -1035,53 +1007,14 @@
         this.currentRawCSV = text;
         this.currentFilename = file.name;
         this.parseAndRender(text, file.name);
-        this.showToast(`Arquivo "${file.name}" carregado com sucesso!`, 'success');
+        this.showToast(`Arquivo "${file.name}" processado com sucesso!`, 'success');
       };
       reader.readAsText(file);
     }
 
-    async loadSampleCSV() {
-      try {
-        const response = await fetch('logs (3).csv');
-        if (response.ok) {
-          const text = await response.text();
-          this.currentRawCSV = text;
-          this.currentFilename = 'logs (3).csv';
-          this.parseAndRender(text, 'logs (3).csv');
-          this.showToast('Exemplo logs (3).csv carregado com sucesso!', 'success');
-        } else {
-          throw new Error('Fetch status ' + response.status);
-        }
-      } catch (err) {
-        console.warn('Usando dados de exemplo Koppert:', err);
-        // Fallback embutido com dados de logs (3).csv
-        const sampleCSV = `TIME,EVENT,"Sensor_Pressao_Fundo","Sensor_Pressao_Medio","Sensor_Pressao_Inicio","Sensor_Temp_01_Alto_Fundo","Sensor_Umid_01_Alto_Fundo","Sensor_CO2_01_Alto_Fundo","Sensor_Temp_01_Alto_Inicio","Sensor_Umid_01_Alto_Inicio","Sensor_CO2_01_Alto_Inicio","Sensor_Temp_03_Alto_Centro","Sensor_Umid_03_Alto_Centro","Sensor_CO2_03_Alto_Centro","Sensor_Temp_04_Baixo_Inicio","Sensor_Umid_04_Baixo_Inicio","Sensor_Temp_05_Baixo_Fundo","Sensor_Umid_05_Baixo_Fundo","Sensor_Temp_06_Baixo_Medio","Sensor_Umid_06_Baixo_Medio"
-2026-08-20T09:10:41-03:00,Boot,0.625014,-0.312507,-2.812505,23.100000,68.900000,602.000000,22.400000,79.100000,350.000000,22.100000,71.600000,500.000000,21.700000,75.400000,21.800000,72.000000,21.700000,73.100000
-2026-08-20T09:11:11-03:00,,0.625014,-0.625014,-2.812505,23.100000,69.000000,601.000000,22.400000,79.100000,350.000000,22.100000,71.600000,501.000000,21.700000,75.300000,21.900000,72.000000,21.700000,73.100000
-2026-08-20T09:11:41-03:00,,0.625014,-0.937521,-2.812505,23.100000,69.100000,601.000000,22.500000,79.100000,350.000000,22.100000,71.500000,501.000000,21.700000,75.300000,21.900000,72.000000,21.700000,73.100000
-2026-08-20T09:12:11-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.100000,600.000000,22.500000,79.100000,350.000000,22.200000,71.500000,500.000000,21.700000,75.300000,21.900000,72.000000,21.700000,73.100000
-2026-08-20T09:12:41-03:00,,0.625014,-0.937521,-2.812505,23.100000,69.100000,600.000000,22.500000,79.100000,350.000000,22.200000,71.500000,501.000000,21.800000,75.300000,21.900000,71.900000,21.700000,73.100000
-2026-08-20T09:13:11-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.100000,601.000000,22.500000,79.100000,350.000000,22.200000,71.600000,501.000000,21.800000,75.500000,21.900000,72.000000,21.700000,73.000000
-2026-08-20T09:13:41-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.100000,601.000000,22.500000,79.100000,350.000000,22.200000,71.700000,502.000000,21.800000,75.500000,21.900000,71.900000,21.800000,73.000000
-2026-08-20T09:14:11-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.100000,602.000000,22.500000,79.100000,350.000000,22.200000,71.900000,502.000000,21.800000,75.400000,21.900000,71.900000,21.800000,73.100000
-2026-08-20T09:14:41-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.100000,604.000000,22.500000,79.100000,350.000000,22.200000,72.200000,501.000000,21.800000,75.500000,21.900000,71.900000,21.800000,73.000000
-2026-08-20T09:15:11-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.100000,603.000000,22.500000,79.300000,350.000000,22.200000,72.300000,500.000000,21.800000,75.300000,21.900000,71.900000,21.800000,73.100000
-2026-08-20T09:15:41-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.000000,602.000000,22.500000,79.500000,350.000000,22.200000,72.400000,498.000000,21.800000,74.800000,21.900000,71.900000,21.800000,73.000000
-2026-08-20T09:16:11-03:00,,0.625014,-0.937521,-2.812505,23.100000,69.000000,603.000000,22.500000,79.600000,350.000000,22.200000,72.500000,499.000000,21.800000,74.600000,21.900000,71.900000,21.800000,73.000000
-2026-08-20T09:16:41-03:00,,0.625014,-0.937521,-2.812505,23.100000,69.100000,604.000000,22.600000,79.500000,350.000000,22.200000,72.700000,500.000000,21.800000,74.500000,21.900000,71.900000,21.800000,73.000000
-2026-08-20T09:17:11-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.300000,604.000000,22.600000,79.500000,350.000000,22.200000,72.800000,501.000000,21.800000,74.400000,21.900000,71.800000,21.800000,73.100000
-2026-08-20T09:17:41-03:00,,0.625014,-0.937521,-2.499998,23.100000,69.300000,603.000000,22.600000,79.400000,350.000000,22.200000,73.000000,501.000000,21.800000,74.400000,21.900000,71.800000,21.800000,73.100000`;
-        this.currentRawCSV = sampleCSV;
-        this.currentFilename = 'logs (3).csv';
-        this.parseAndRender(sampleCSV, 'logs (3).csv');
-        this.showToast('Exemplo logs (3).csv carregado com sucesso!', 'success');
-      }
-    }
-
     parseAndRender(csvText, filename) {
       try {
-        const scaleMode = this.scaleModeSelect ? this.scaleModeSelect.value : 'auto';
-        const dataset = SensorDataParser.parse(csvText, { scaleMode });
+        const dataset = SensorDataParser.parse(csvText);
         this.currentDataset = dataset;
 
         if (this.fileInfoBar) this.fileInfoBar.style.display = 'flex';
@@ -1104,18 +1037,12 @@
 
         if (this.chartSection) this.chartSection.style.display = 'block';
         if (this.chartTitle) this.chartTitle.textContent = `Telemetria: ${filename || 'Relatório de Sensores'}`;
-        if (this.chartSubtitle) this.chartSubtitle.textContent = `Total de ${dataset.sensors.length} sensores monitorados com ajuste automático de grandezas (°C, %, PPM, Pa)`;
+        if (this.chartSubtitle) this.chartSubtitle.textContent = `Total de ${dataset.sensors.length} sensores monitorados com ajuste de grandezas (°C, %, PPM, Pa)`;
 
         this.chartManager.setDataset(dataset);
         this.updateStatsTable();
 
-        // Salvar no histórico
-        this.firebaseService.saveChartHistory({
-          filename: filename || 'dados.csv',
-          totalRows: dataset.totalRows,
-          sensors: dataset.sensors,
-          csvRaw: csvText
-        });
+        // ATENÇÃO: NÃO salva automaticamente na nuvem. Salva apenas se o usuário clicar no botão!
 
       } catch (err) {
         console.error('Erro ao processar CSV:', err);
@@ -1213,8 +1140,8 @@
 
         tr.innerHTML = `
           <td>
-            <div style="display:flex; align-items:center; gap:6px;">
-              <span style="width:10px; height:10px; border-radius:2px; background:${sensor.color}; display:inline-block;"></span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="width:12px; height:12px; border-radius:3px; background:${sensor.color}; display:inline-block;"></span>
               <strong>${sensor.name}</strong>
             </div>
           </td>
@@ -1254,7 +1181,7 @@
 
       const items = await this.firebaseService.loadHistory();
       if (!items || items.length === 0) {
-        this.historyList.innerHTML = `<div class="empty-state">Nenhum gráfico salvo no histórico ainda. Importe um arquivo CSV para começar!</div>`;
+        this.historyList.innerHTML = `<div class="empty-state">Nenhum gráfico salvo no histórico ainda. Importe um arquivo CSV e clique em "Salvar na Nuvem"!</div>`;
         return;
       }
 
@@ -1284,7 +1211,7 @@
             this.closeHistoryModal();
             this.showToast(`Gráfico "${item.filename}" carregado do histórico!`, 'success');
           } else {
-            this.showToast('Os dados brutos deste registro não estão disponíveis para re-renderização.', 'warning');
+            this.showToast('Os dados brutos deste registro não estão disponíveis.', 'warning');
           }
         });
 
@@ -1442,7 +1369,6 @@
     }
   }
 
-  // Inicializa quando o DOM estiver pronto
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       window.koppertApp = new KoppertApp();

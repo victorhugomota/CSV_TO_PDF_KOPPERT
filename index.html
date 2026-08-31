@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Koppert Brasil | Telemetria CSV to PDF & Gráficos Interativos</title>
-  <meta name="description" content="Koppert Biological Systems - Sistema de Telemetria, Normalização de Sensores e Exportação de Relatórios Corporativos em PDF.">
+  <title>Koppert Brasil | Telemetria & Gráficos de Sensores</title>
+  <meta name="description" content="Koppert Brasil - Sistema de Telemetria, Normalização de Sensores e Exportação de Relatórios Corporativos em PDF.">
   
   <!-- Favicon Koppert -->
   <link rel="icon" type="image/png" href="https://www.koppert.com.br/typo3conf/ext/site_template/Resources/Public/Img/Icons/fav/favicon-32x32.png">
@@ -25,54 +25,41 @@
 </head>
 <body>
 
-  <!-- Top Bar Koppert Style -->
-  <div class="app-topbar">
-    <div class="topbar-container">
-      <div class="topbar-tagline">
-        <span>Koppert Biological Systems</span>
-        <span class="dot"></span>
-        <span>Parceiros com a Natureza &bull; Partners with Nature</span>
-      </div>
-      <div class="topbar-meta">
-        <span>Brasil 🇧🇷</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Main Navigation / Header -->
-  <header class="app-header">
-    <div class="header-container">
-      <div class="logo-area">
-        <div class="brand-logo-wrapper">
-          <div class="koppert-logo-box">
-            <span class="brand-name">KOPPERT</span>
-            <span class="brand-sub">BRASIL</span>
-          </div>
-        </div>
-        <div class="logo-title">
-          <h1>Telemetria & Gráficos de Sensores</h1>
-          <p>Conversão, Normalização de Escalas e Exportação em PDF</p>
-        </div>
-      </div>
+  <!-- Floating Navigation Bar Koppert -->
+  <div class="navbar-wrapper">
+    <nav class="floating-navbar">
+      <img src="assets/Koppert_Logo_Horizontal.png" alt="Koppert Biological Systems" class="navbar-logo">
       
-      <div class="header-actions">
-        <button id="btn-load-sample" class="btn btn-outline btn-sm" title="Carregar arquivo de teste logs (3).csv">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-          Carregar Exemplo (logs)
-        </button>
-        <button id="btn-open-history" class="btn btn-outline btn-sm">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <ul class="navbar-nav">
+        <li><a href="#" class="active">Telemetria & Gráficos</a></li>
+        <li><a href="https://www.koppert.com.br/produtos/" target="_blank">Produtos</a></li>
+        <li><a href="https://www.koppert.com.br/culturas/" target="_blank">Culturas</a></li>
+        <li><a href="https://www.koppert.com.br/sobre-a-koppert/" target="_blank">Sobre a Koppert</a></li>
+      </ul>
+
+      <div class="navbar-actions">
+        <button id="btn-open-history" class="btn-koppert-pill">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
           Histórico na Nuvem
         </button>
-        <button id="btn-toggle-theme" class="btn btn-outline btn-sm" title="Alternar Tema Claro/Escuro">
+        <button id="btn-toggle-theme" class="btn-icon-circle" title="Alternar Tema Claro/Escuro">
           <span id="theme-icon">🌙</span>
         </button>
       </div>
-    </div>
-  </header>
+    </nav>
+  </div>
 
   <!-- Main Container -->
   <main class="app-main">
+
+    <!-- Hero Banner Koppert Style -->
+    <section class="hero-banner">
+      <div class="hero-content">
+        <div class="hero-tag">Koppert • Partners with Nature</div>
+        <h1 class="hero-title"><u>Proteção biológica de culturas</u> para produtores de todo o mundo</h1>
+        <p class="hero-subtitle">Módulo corporativo de conversão de dados de telemetria CSV, análise gráfica de múltiplos sensores e exportação de laudos técnicos em PDF.</p>
+      </div>
+    </section>
 
     <!-- Upload Zone -->
     <section class="card upload-section">
@@ -80,10 +67,10 @@
         <input type="file" id="file-input" accept=".csv,text/csv,text/plain" style="display: none;">
         <div class="dropzone-content">
           <div class="dropzone-icon-circle">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           </div>
           <div class="dropzone-title">Arraste e solte o arquivo CSV aqui ou clique na área</div>
-          <div class="dropzone-subtitle">Suporte dinâmico a múltiplos sensores (Temperatura °C, Umidade %, CO₂ PPM, Pressão Pa) com auto-ajuste de grandezas</div>
+          <div class="dropzone-subtitle">Detecção modular e automática de sensores: Temperatura (°C), Umidade (%), CO₂ (PPM) e Pressão (Pa) com auto-ajuste de grandezas</div>
           
           <div class="dropzone-actions">
             <button id="btn-browse-file" type="button" class="btn btn-primary">
@@ -98,11 +85,11 @@
       <div id="file-info-bar" class="file-info-bar" style="display: none;">
         <div class="file-info-details">
           <div class="info-item">
-            <span class="info-label">Arquivo</span>
+            <span class="info-label">Arquivo Carregado</span>
             <span id="info-filename" class="info-value">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Registros</span>
+            <span class="info-label">Total de Leituras</span>
             <span id="info-rows" class="info-value">-</span>
           </div>
           <div class="info-item">
@@ -110,17 +97,9 @@
             <span id="info-sensor-count" class="info-value">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Período</span>
+            <span class="info-label">Período de Monitoramento</span>
             <span id="info-time-range" class="info-value">-</span>
           </div>
-        </div>
-        <div>
-          <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Escala de Dados:</label>
-          <select id="scale-mode-select" class="form-select">
-            <option value="auto" selected>Auto (Ajuste 10⁶: 21700000 -> 21.7)</option>
-            <option value="1e6">Dividir sempre por 1.000.000 (10⁶)</option>
-            <option value="raw">Original (Sem conversão)</option>
-          </select>
         </div>
       </div>
     </section>
@@ -129,8 +108,8 @@
     <section id="sensors-section" class="card sensors-container" style="display: none;">
       <div class="sensors-header">
         <div>
-          <h3 style="font-size: 1rem; font-weight: 800; color: var(--koppert-green);">Painel Modular de Sensores</h3>
-          <p style="font-size: 0.78rem; color: var(--text-secondary);">Marque ou desmarque os sensores para customizar a exibição das curvas no gráfico:</p>
+          <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--koppert-forest);">Painel Modular de Sensores</h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">Marque ou desmarque os sensores para customizar a exibição das curvas no gráfico:</p>
         </div>
         <div class="sensors-actions">
           <button id="btn-select-all" class="btn btn-outline btn-sm">Selecionar Todos</button>
@@ -144,7 +123,7 @@
 
       <!-- Categories Container -->
       <div id="sensor-categories" class="sensor-categories">
-        <!-- Renderizado dinamicamente via JS -->
+        <!-- Renderizado dinamicamente -->
       </div>
     </section>
 
@@ -173,7 +152,7 @@
 
       <!-- Statistics Table Section -->
       <div class="stats-table-wrapper">
-        <h4 style="font-size: 0.85rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--koppert-green);">Resumo Estatístico dos Sensores Monitorados</h4>
+        <h4 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 0.6rem; color: var(--koppert-forest);">Resumo Estatístico dos Sensores Monitorados</h4>
         <table class="stats-table">
           <thead>
             <tr>
@@ -208,7 +187,7 @@
           
           <!-- Formulário de Configuração do PDF -->
           <div class="pdf-controls-pane">
-            <h4 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 0.75rem; color: var(--koppert-green);">Personalização do Cabeçalho & Conteúdo</h4>
+            <h4 style="font-size: 0.9rem; font-weight: 800; margin-bottom: 0.75rem; color: var(--koppert-forest);">Personalização do Cabeçalho & Conteúdo</h4>
             
             <div class="form-group">
               <label>Foto / Logo do Cabeçalho (Customizável):</label>
@@ -248,7 +227,7 @@
               <input type="text" id="pdf-notes-input" class="form-input" placeholder="Ex: Todos os parâmetros operando dentro da normalidade recomendada.">
             </div>
 
-            <h4 style="font-size: 0.9rem; font-weight: 800; margin: 0.75rem 0 0.5rem 0; color: var(--koppert-green);">Margens da Página (mm)</h4>
+            <h4 style="font-size: 0.9rem; font-weight: 800; margin: 0.75rem 0 0.5rem 0; color: var(--koppert-forest);">Margens da Página (mm)</h4>
             <div class="form-row">
               <div class="form-group">
                 <label>Superior / Inferior (mm):</label>
@@ -344,12 +323,44 @@
   <!-- Toast Notifications Container -->
   <div id="toast-container"></div>
 
-  <!-- Footer -->
-  <footer class="app-footer">
-    <p><strong>Koppert Brasil</strong> &bull; Proteção Biológica das Culturas &bull; Parceiros com a Natureza &bull; 2026</p>
+  <!-- Footer Koppert Official Style -->
+  <footer class="koppert-footer">
+    <div class="footer-container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <img src="assets/Koppert_Logo_Horizontal.png" alt="Koppert" class="footer-logo" style="filter: brightness(0) invert(1);">
+          <h4>Conheça as últimas notícias e informações</h4>
+          <p style="font-size: 0.85rem; color: #a7f3d0; line-height: 1.6;">Líder global em controle biológico e polinização natural. Desenvolvendo soluções sustentáveis para a agricultura.</p>
+        </div>
+        <div class="footer-links-grid">
+          <div class="footer-col">
+            <h5>Parceiros com a natureza</h5>
+            <ul>
+              <li><a href="https://www.koppert.com.br/acaros-predadores/" target="_blank">Ácaros predadores</a></li>
+              <li><a href="https://www.koppert.com.br/insetos-predadores/" target="_blank">Insetos predadores</a></li>
+              <li><a href="https://www.koppert.com.br/microorganismos-beneficos/" target="_blank">Microrganismos benéficos</a></li>
+              <li><a href="https://www.koppert.com.br/protecao-de-culturas/" target="_blank">Proteção de culturas</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h5>Sobre a Koppert</h5>
+            <ul>
+              <li><a href="https://www.koppert.com.br/sobre-a-koppert/" target="_blank">Sobre a Koppert</a></li>
+              <li><a href="https://www.koppert.com.br/noticias-e-eventos/" target="_blank">Notícias e eventos</a></li>
+              <li><a href="https://www.koppert.com.br/trabalhe-na-koppert/" target="_blank">Trabalhe na Koppert</a></li>
+              <li><a href="https://www.koppert.com.br/contato/" target="_blank">Contato</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>Koppert &mdash; Copyright 2026</span>
+        <span>Política de Privacidade &bull; Termos de Uso &bull; Koppert Biological Systems</span>
+      </div>
+    </div>
   </footer>
 
-  <!-- Universal JavaScript Bundle (funciona em file:/// e HTTP) -->
+  <!-- Universal JavaScript Bundle -->
   <script src="js/app.bundle.js"></script>
 </body>
 </html>
