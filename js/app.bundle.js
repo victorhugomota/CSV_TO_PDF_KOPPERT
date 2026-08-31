@@ -557,17 +557,17 @@
       const showStats = options.showStatsTable !== false && dataset && dataset.sensors;
       const activeSensors = showStats ? dataset.sensors.filter(s => s.enabled) : [];
 
-      // Alturas da tabela
-      const ROW_H = 5.5;
-      const TBL_HDR_H = 7.5;
-      const TBL_TITLE_H = 8;
+      // Alturas da tabela com espaçamento corporativo generoso
+      const isPortrait = orientation === 'portrait';
+      const ROW_H = isPortrait ? 7.2 : 6.8;
+      const TBL_HDR_H = 8.5;
+      const TBL_TITLE_H = 9.0;
 
-      // Espaço útil para linhas na página de tabela
-      const tableUsableH = pageH - HEADER_H - mBot - FOOTER_RESERVED - TBL_TITLE_H - TBL_HDR_H - 2;
-      const rowsPerPage = Math.max(1, Math.floor(tableUsableH / ROW_H));
+      // Limite seguro de linhas por folha (14 em paisagem, 20 em retrato)
+      const rowsPerPage = isPortrait ? 20 : 14;
       const tablePagesCount = (showStats && activeSensors.length > 0) ? Math.ceil(activeSensors.length / rowsPerPage) : 0;
 
-      // Página 1 SEMPRE é o gráfico. Páginas 2+ são a tabela.
+      // Página 1 SEMPRE é o gráfico. Páginas 2+ são a tabela paginada.
       const totalPages = 1 + tablePagesCount;
 
       // Função Cabeçalho Institucional
@@ -649,7 +649,7 @@
         if (options.responsible) {
           doc.text(`Responsável Técnico: ${options.responsible}`, pageW - mRight, fy, { align: 'right' });
         } else {
-          doc.text(`Página ${pageNum} de ${totalPages}`, pageW - mRight, fy, { align: 'right' });
+          doc.text(`Folha ${pageNum} de ${totalPages}`, pageW - mRight, fy, { align: 'right' });
         }
       };
 
@@ -701,17 +701,17 @@
       drawFooter(1);
 
       // ═════════════════════════════════════════════
-      // PÁGINA 2+: TABELA DETALHADA DE SENSORES
+      // PÁGINAS 2+: TABELA DETALHADA DE SENSORES
       // ═════════════════════════════════════════════
       if (showStats && activeSensors.length > 0) {
         const cols = [
-          { label: 'Sensor', pct: 0.28 },
-          { label: 'Grandeza / Tipo', pct: 0.17 },
-          { label: 'Unidade', pct: 0.09 },
+          { label: 'Sensor', pct: 0.30 },
+          { label: 'Grandeza / Tipo', pct: 0.18 },
+          { label: 'Unidade', pct: 0.08 },
           { label: 'Mínimo', pct: 0.11 },
           { label: 'Máximo', pct: 0.11 },
           { label: 'Média', pct: 0.11 },
-          { label: 'Última Leitura', pct: 0.13 }
+          { label: 'Última Leitura', pct: 0.11 }
         ].map(c => ({ ...c, w: pw * c.pct }));
 
         let sensorIdx = 0;
@@ -722,7 +722,7 @@
           const currentPageNum = 1 + tPage;
           doc.addPage();
           drawHeader(currentPageNum);
-          y = HEADER_H + 3;
+          y = HEADER_H + 4;
 
           // Título da Tabela
           const tblLabel = tablePagesCount > 1
@@ -730,9 +730,9 @@
             : 'Resumo Estatístico dos Sensores Monitorados';
 
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9);
+          doc.setFontSize(9.5);
           doc.setTextColor(0, 72, 50);
-          doc.text(tblLabel, mLeft, y + 4.5);
+          doc.text(tblLabel, mLeft, y + 5);
           y += TBL_TITLE_H;
 
           // Cabeçalho da Tabela (Fundo Verde Oficial Koppert)
@@ -741,15 +741,20 @@
 
           let cx = mLeft;
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7.2);
+          doc.setFontSize(7.5);
           doc.setTextColor(255, 255, 255);
-          cols.forEach(col => {
-            doc.text(col.label, cx + 2.5, y + 5);
+          cols.forEach((col, ci) => {
+            const align = (ci >= 3) ? 'center' : 'left';
+            if (align === 'center') {
+              doc.text(col.label, cx + col.w / 2, y + 5.5, { align: 'center' });
+            } else {
+              doc.text(col.label, cx + 3, y + 5.5);
+            }
             cx += col.w;
           });
           y += TBL_HDR_H;
 
-          // Linhas de dados
+          // Linhas de dados para esta página específica
           const rowsThisPage = Math.min(rowsPerPage, activeSensors.length - sensorIdx);
           const startTableY = y;
 
@@ -763,22 +768,29 @@
               doc.rect(mLeft, y, pw, ROW_H, 'F');
             }
 
-            // Bolinha com a cor exata do sensor
+            // Indicador com a cor exata do sensor
             const rgb = hexToRgb(sensor.color || '#24b35a');
             doc.setFillColor(rgb[0], rgb[1], rgb[2]);
-            doc.circle(mLeft + 3, y + ROW_H / 2, 1.3, 'F');
+            doc.circle(mLeft + 3.5, y + ROW_H / 2, 1.4, 'F');
 
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(6.8);
+            doc.setFontSize(7.0);
             doc.setTextColor(30, 41, 59);
             cx = mLeft;
 
-            const sName = sensor.name.length > 40 ? sensor.name.substring(0, 38) + '…' : sensor.name;
+            const sName = sensor.name.length > 38 ? sensor.name.substring(0, 36) + '…' : sensor.name;
             const lastVal = stats.last !== undefined ? Number(stats.last).toFixed(2) : '-';
+
+            // Grandeza simplificada para não sobrepor
+            let groupName = sensor.group || '-';
+            if (sensor.type === 'co2') groupName = 'Dióxido de Carbono';
+            else if (sensor.type === 'temperature') groupName = 'Temperatura';
+            else if (sensor.type === 'humidity') groupName = 'Umidade';
+            else if (sensor.type === 'pressure') groupName = 'Pressão';
 
             const rowData = [
               sName,
-              sensor.group || '-',
+              groupName,
               sensor.unit || '-',
               Number(stats.min).toFixed(2) + ' ' + (sensor.unit || ''),
               Number(stats.max).toFixed(2) + ' ' + (sensor.unit || ''),
@@ -787,8 +799,15 @@
             ];
 
             rowData.forEach((val, ci) => {
-              const padLeft = (ci === 0) ? 6 : 2.5;
-              doc.text(String(val), cx + padLeft, y + 3.8);
+              if (ci === 0) {
+                doc.text(String(val), cx + 7.5, y + 4.5);
+              } else if (ci === 1) {
+                doc.text(String(val), cx + 3, y + 4.5);
+              } else if (ci === 2) {
+                doc.text(String(val), cx + cols[ci].w / 2, y + 4.5, { align: 'center' });
+              } else {
+                doc.text(String(val), cx + cols[ci].w / 2, y + 4.5, { align: 'center' });
+              }
               cx += cols[ci].w;
             });
 
@@ -1484,12 +1503,13 @@
       // Contar sensores ativos
       const activeSensors = (this.currentDataset && this.currentDataset.sensors)
         ? this.currentDataset.sensors.filter(s => s.enabled) : [];
-      const rowsPerPage = 25;
+      
+      const isPortrait = orientation === 'portrait';
+      const rowsPerPage = isPortrait ? 20 : 14;
       const tablePagesCount = (showTable && activeSensors.length > 0)
         ? Math.ceil(activeSensors.length / rowsPerPage) : 0;
       const totalPages = 1 + tablePagesCount;
 
-      const isPortrait = orientation === 'portrait';
       const pw = isPortrait ? 210 : 297;
       const ph = isPortrait ? 297 : 210;
       const scale = 360 / pw;
@@ -1498,7 +1518,7 @@
       const logoSrc = KOPPERT_OFFICIAL_LOGO;
       const chartImg = this.chartManager ? this.chartManager.getImageDataURL() : null;
 
-      const buildPage = (pageNum, isChartPage) => {
+      const buildPageHTML = (pageNum, isChartPage, sensorSlice, tPageNum) => {
         const barH = Math.round(5 * scale);
         const hdrH = Math.round(22 * scale);
         const mL = Math.round(marginH * scale);
@@ -1548,8 +1568,8 @@
               position: absolute;
               left: ${mL}px; top: ${hdrH}px;
               width: ${innerW}px; height: ${innerH}px;
-              display: flex; flex-direction: column; gap: ${Math.round(3 * scale)}px;
-              padding-top: ${Math.round(4 * scale)}px;
+              display: flex; flex-direction: column; gap: ${Math.round(2.5 * scale)}px;
+              padding-top: ${Math.round(3 * scale)}px;
             ">
               ${isChartPage ? `
                 <div style="font-size: ${Math.round(6.5 * scale)}px; font-weight: 700; color: #004832;">
@@ -1566,61 +1586,70 @@
                 </div>
               ` : `
                 <div style="font-size: ${Math.round(6.5 * scale)}px; font-weight: 700; color: #004832;">
-                  Resumo Estatístico dos Sensores Monitorados (Página ${pageNum})
+                  Resumo Estatístico dos Sensores Monitorados ${tablePagesCount > 1 ? `(Folha ${tPageNum} de ${tablePagesCount})` : ''}
                 </div>
-                <div style="background: #004832; display: grid; grid-template-columns: 2.8fr 1.8fr 1fr 1.2fr 1.2fr 1.2fr 1.3fr; padding: ${Math.round(2 * scale)}px; border-radius: 2px 2px 0 0;">
+                <div style="background: #004832; display: grid; grid-template-columns: 3.2fr 2fr 0.9fr 1.2fr 1.2fr 1.2fr 1.3fr; padding: ${Math.round(2 * scale)}px; border-radius: 2px 2px 0 0;">
                   ${['Sensor', 'Grandeza', 'Un.', 'Mín', 'Máx', 'Média', 'Última'].map(c =>
                     `<span style="font-size: ${Math.round(4.8 * scale)}px; color: #ffffff; font-weight: 700;">${c}</span>`
                   ).join('')}
                 </div>
-                ${activeSensors.slice(0, 18).map((s, i) => `
-                  <div style="display: grid; grid-template-columns: 2.8fr 1.8fr 1fr 1.2fr 1.2fr 1.2fr 1.3fr; padding: ${Math.round(1.5 * scale)}px ${Math.round(2 * scale)}px; background: ${i % 2 === 0 ? '#f4f8f6' : '#ffffff'}; align-items: center;">
+                ${sensorSlice.map((s, i) => {
+                  const st = s.stats || { min: 0, max: 0, avg: 0, last: 0 };
+                  let gName = s.group || '-';
+                  if (s.type === 'co2') gName = 'Dióxido de Carbono';
+                  else if (s.type === 'temperature') gName = 'Temperatura';
+                  else if (s.type === 'humidity') gName = 'Umidade';
+                  else if (s.type === 'pressure') gName = 'Pressão';
+                  
+                  return `
+                  <div style="display: grid; grid-template-columns: 3.2fr 2fr 0.9fr 1.2fr 1.2fr 1.2fr 1.3fr; padding: ${Math.round(1.5 * scale)}px ${Math.round(2 * scale)}px; background: ${i % 2 === 0 ? '#f4f8f6' : '#ffffff'}; align-items: center; border-bottom: 0.5px solid #e0ece5;">
                     <span style="font-size: ${Math.round(4.6 * scale)}px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px;">
                       <span style="width: 4px; height: 4px; border-radius: 50%; background: ${s.color || '#24b35a'}; flex-shrink: 0;"></span>
                       ${s.name}
                     </span>
-                    <span style="font-size: ${Math.round(4.6 * scale)}px;">${s.group || '-'}</span>
-                    <span style="font-size: ${Math.round(4.6 * scale)}px;">${s.unit || '-'}</span>
-                    <span style="font-size: ${Math.round(4.6 * scale)}px;">${s.stats ? Number(s.stats.min).toFixed(1) : '-'}</span>
-                    <span style="font-size: ${Math.round(4.6 * scale)}px;">${s.stats ? Number(s.stats.max).toFixed(1) : '-'}</span>
-                    <span style="font-size: ${Math.round(4.6 * scale)}px;">${s.stats ? Number(s.stats.avg).toFixed(1) : '-'}</span>
-                    <span style="font-size: ${Math.round(4.6 * scale)}px;">${s.stats && s.stats.last !== undefined ? Number(s.stats.last).toFixed(1) : '-'}</span>
-                  </div>
-                `).join('')}
+                    <span style="font-size: ${Math.round(4.5 * scale)}px; color: #555; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">${gName}</span>
+                    <span style="font-size: ${Math.round(4.5 * scale)}px; color: #333; text-align: center;">${s.unit || '-'}</span>
+                    <span style="font-size: ${Math.round(4.5 * scale)}px; color: #333; text-align: center;">${Number(st.min).toFixed(1)}</span>
+                    <span style="font-size: ${Math.round(4.5 * scale)}px; color: #333; text-align: center;">${Number(st.max).toFixed(1)}</span>
+                    <span style="font-size: ${Math.round(4.5 * scale)}px; color: #333; text-align: center;">${Number(st.avg).toFixed(1)}</span>
+                    <span style="font-size: ${Math.round(4.5 * scale)}px; font-weight: 700; color: #004832; text-align: center;">${st.last !== undefined ? Number(st.last).toFixed(1) : '-'}</span>
+                  </div>`;
+                }).join('')}
               `}
             </div>
 
-            <!-- Rodapé da Folha -->
+            <!-- Rodapé Institucional -->
             <div style="
-              position: absolute; bottom: 0; left: 0; right: 0;
-              height: ${ftrH}px;
-              border-top: 1px solid #d0e5da;
-              display: flex; align-items: center; justify-content: space-between;
-              padding: 0 ${mL}px;
-              background: #ffffff;
+              position: absolute;
+              left: ${mL}px; bottom: ${mB}px;
+              width: ${innerW}px;
+              border-top: 1px solid #d0e0d8;
+              padding-top: ${Math.round(1.5 * scale)}px;
+              display: flex; justify-content: space-between; align-items: center;
+              font-size: ${Math.round(5 * scale)}px; color: #777;
             ">
-              <span style="font-size: ${Math.round(4.5 * scale)}px; color: #999;">Koppert Brasil • Parceiros com a Natureza</span>
-              <span style="font-size: ${Math.round(4.5 * scale)}px; color: #999;">Pág. ${pageNum} de ${totalPages}</span>
+              <span>Koppert Brasil • Parceiros com a Natureza</span>
+              <span>Pág. ${pageNum} de ${totalPages}</span>
             </div>
           </div>
         `;
       };
 
-      let pagesHtml = buildPage(1, true);
-      for (let p = 2; p <= totalPages; p++) {
-        pagesHtml += buildPage(p, false);
+      // Gerar Página 1 (Gráfico)
+      let pagesHTML = buildPageHTML(1, true, [], 0);
+
+      // Gerar Páginas 2..N (Tabelas paginadas sem corte)
+      if (showTable && activeSensors.length > 0) {
+        for (let tp = 0; tp < tablePagesCount; tp++) {
+          const slice = activeSensors.slice(tp * rowsPerPage, (tp + 1) * rowsPerPage);
+          pagesHTML += buildPageHTML(2 + tp, false, slice, tp + 1);
+        }
       }
 
-      container.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 18px; align-items: center; width: 100%;">
-          ${pagesHtml}
-        </div>
-      `;
-
-      this.pageMockup = container.querySelector('.preview-page');
+      container.innerHTML = pagesHTML;
     }
 
-    async downloadPDF() {
+    downloadPDF() {
       try {
         this.showToast('Gerando relatório corporativo em PDF...', 'info');
 
