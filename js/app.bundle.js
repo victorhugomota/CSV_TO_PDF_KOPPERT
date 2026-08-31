@@ -1649,7 +1649,7 @@
       container.innerHTML = pagesHTML;
     }
 
-    downloadPDF() {
+    async downloadPDF() {
       try {
         this.showToast('Gerando relatório corporativo em PDF...', 'info');
 
