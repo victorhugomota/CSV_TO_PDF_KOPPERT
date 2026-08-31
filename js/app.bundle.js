@@ -1612,7 +1612,7 @@
                   ).join('')}
                 </div>
                 ${activeSensors.slice(0, 18).map((s, i) => `
-                  <div style="display: grid; grid-template-columns: 2.8fr 1.8fr 1fr 1.2fr 1.2fr 1.2fr 1.3fr; padding: ${Math.round(1.5 * scale)}px ${{Math.round(2 * scale)}}px; background: ${i % 2 === 0 ? '#f4f8f6' : '#ffffff'}; align-items: center;">
+                  <div style="display: grid; grid-template-columns: 2.8fr 1.8fr 1fr 1.2fr 1.2fr 1.2fr 1.3fr; padding: ${Math.round(1.5 * scale)}px ${Math.round(2 * scale)}px; background: ${i % 2 === 0 ? '#f4f8f6' : '#ffffff'}; align-items: center;">
                     <span style="font-size: ${Math.round(4.6 * scale)}px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px;">
                       <span style="width: 4px; height: 4px; border-radius: 50%; background: ${s.color || '#24b35a'}; flex-shrink: 0;"></span>
                       ${s.name}
@@ -1735,10 +1735,20 @@
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      window.koppertApp = new KoppertApp();
+      try {
+        window.koppertApp = new KoppertApp();
+        console.log('✅ Koppert App inicializada com sucesso.');
+      } catch (err) {
+        console.error('❌ Erro na inicialização Koppert:', err);
+      }
     });
   } else {
-    window.koppertApp = new KoppertApp();
+    try {
+      window.koppertApp = new KoppertApp();
+      console.log('✅ Koppert App inicializada com sucesso.');
+    } catch (err) {
+      console.error('❌ Erro na inicialização Koppert:', err);
+    }
   }
 
 })();
