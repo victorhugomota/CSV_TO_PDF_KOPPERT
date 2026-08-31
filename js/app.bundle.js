@@ -408,24 +408,6 @@
             return header + rows;
           }
         },
-        toolbox: {
-          right: 30,
-          top: 0,
-          feature: {
-            dataZoom: {
-              yAxisIndex: 'none',
-              title: { zoom: 'Zoom por Área', back: 'Restaurar Zoom' }
-            },
-            restore: { title: 'Resetar' },
-            saveAsImage: {
-              title: 'Salvar Imagem PNG',
-              pixelRatio: 2.5
-            }
-          },
-          iconStyle: {
-            borderColor: textColor
-          }
-        },
         xAxis: {
           type: 'time',
           boundaryGap: false,
@@ -1689,27 +1671,7 @@
     }
 
     initTheme() {
-      const savedTheme = localStorage.getItem('koppert_theme') || 'light';
-      document.body.setAttribute('data-theme', savedTheme);
-      this.updateThemeIcon(savedTheme);
-    }
-
-    toggleTheme() {
-      const currentTheme = document.body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      document.body.setAttribute('data-theme', newTheme);
-      localStorage.setItem('koppert_theme', newTheme);
-      this.updateThemeIcon(newTheme);
-
-      if (this.chartManager) {
-        this.chartManager.render();
-      }
-    }
-
-    updateThemeIcon(theme) {
-      if (this.themeIcon) {
-        this.themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
-      }
+      document.body.setAttribute('data-theme', 'light');
     }
   }
 
