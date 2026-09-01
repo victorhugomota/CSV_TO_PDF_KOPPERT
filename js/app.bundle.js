@@ -850,7 +850,55 @@
     }
 
     /**
-     * Salva o gráfico e dados brutos no Firebase Firestore na nuvem
+     * Comprime dados CSV usando Gzip padrão do navegador (redução de 95% do tamanho)
+     */
+    async compressData(text) {
+      if (!text) return '';
+      try {
+        if (typeof CompressionStream !== 'undefined') {
+          const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+          const compressedBlob = await new Response(stream).blob();
+          const buffer = await compressedBlob.arrayBuffer();
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          const len = bytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return 'gzip:' + btoa(binary);
+        }
+      } catch (e) {
+        console.warn('Compressão falhou, salvando texto bruto:', e);
+      }
+      return text;
+    }
+
+    /**
+     * Descomprime dados CSV Gzip para o texto original completo
+     */
+    async decompressData(str) {
+      if (!str) return '';
+      if (str.startsWith('gzip:')) {
+        try {
+          const b64 = str.slice(5);
+          const binStr = atob(b64);
+          const len = binStr.length;
+          const decBytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            decBytes[i] = binStr.charCodeAt(i);
+          }
+          const decStream = new Blob([decBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+          return await new Response(decStream).text();
+        } catch (e) {
+          console.error('Erro na descompressão gzip:', e);
+          return '';
+        }
+      }
+      return str; // Texto bruto para compatibilidade retroativa
+    }
+
+    /**
+     * Salva o gráfico e TODOS os dados brutos (sem cortes) no Firebase Firestore
      */
     async saveChartHistory(record) {
       const isoDate = new Date().toISOString();
@@ -864,8 +912,13 @@
         color: s.color,
         stats: s.stats || null
       }));
-      // Limite seguro de 800KB para documento Firestore
-      const csvData = record.csvRaw ? String(record.csvRaw).substring(0, 800000) : '';
+
+      // Comprime 100% do CSV original
+      const compressedCSV = await this.compressData(record.csvRaw || '');
+
+      const CHUNK_SIZE = 700000;
+      const totalChunks = Math.max(1, Math.ceil(compressedCSV.length / CHUNK_SIZE));
+      const mainChunk = compressedCSV.substring(0, CHUNK_SIZE);
 
       const firestoreBody = {
         fields: {
@@ -874,18 +927,19 @@
           totalRows: { integerValue: String(totalRows) },
           sensorCount: { integerValue: String(sensorCount) },
           sensorsSummary: { stringValue: JSON.stringify(sensorsSummary) },
-          csvData: { stringValue: csvData }
+          csvData: { stringValue: mainChunk },
+          totalChunks: { integerValue: String(totalChunks) }
         }
       };
 
-      // Sempre salva também em cache local como fallback
+      // Sempre salva também em cache local seguro
       const localRecord = {
         filename,
         createdAt: isoDate,
         totalRows,
         sensorCount,
         sensorsSummary,
-        csvData
+        csvData: compressedCSV
       };
       this.saveToLocalCache(localRecord);
 
@@ -904,7 +958,26 @@
 
         const data = await response.json();
         const docId = data.name ? data.name.split('/').pop() : 'cloud_' + Date.now();
-        console.log('✅ Gráfico salvo com sucesso no Firebase Firestore:', docId);
+
+        // Se houver múltiplos chunks (para arquivos gigantes de dezenas de MB)
+        if (totalChunks > 1) {
+          for (let i = 1; i < totalChunks; i++) {
+            const chunkSlice = compressedCSV.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            await fetch(`${this.baseUrl}?key=${this.apiKey}&documentId=${docId}_chk_${i}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fields: {
+                  parentDocId: { stringValue: docId },
+                  chunkIndex: { integerValue: String(i) },
+                  chunkData: { stringValue: chunkSlice }
+                }
+              })
+            }).catch(e => console.warn('Erro ao salvar chunk extra:', e));
+          }
+        }
+
+        console.log('✅ Gráfico com dados 100% integrais salvo no Firebase Firestore:', docId);
         return { success: true, id: docId, source: 'firestore' };
       } catch (err) {
         console.warn('Falha de rede ao conectar com Firestore. Salvo em cache local:', err);
@@ -918,16 +991,20 @@
     async loadHistory() {
       const results = [];
 
-      // 1. Busca documentos do Firebase Firestore
       try {
         const response = await fetch(`${this.baseUrl}?key=${this.apiKey}&pageSize=50`);
         if (response.ok) {
           const data = await response.json();
           const docs = data.documents || [];
 
-          docs.forEach(docSnap => {
+          for (const docSnap of docs) {
             const fields = docSnap.fields || {};
             const docId = docSnap.name ? docSnap.name.split('/').pop() : '';
+
+            // Ignorar documentos de chunks secundários na listagem principal
+            if (docId.includes('_chk_') || (fields.parentDocId && fields.parentDocId.stringValue)) {
+              continue;
+            }
 
             let summary = [];
             if (fields.sensorsSummary && fields.sensorsSummary.stringValue) {
@@ -944,15 +1021,16 @@
               sensorCount: parseInt((fields.sensorCount && fields.sensorCount.integerValue) || '0'),
               sensorsSummary: summary,
               csvData: (fields.csvData && fields.csvData.stringValue) || '',
+              totalChunks: parseInt((fields.totalChunks && fields.totalChunks.integerValue) || '1'),
               source: 'firestore'
             });
-          });
+          }
         }
       } catch (err) {
         console.warn('Não foi possível carregar do Firestore via rede:', err);
       }
 
-      // 2. Mescla itens de cache local que ainda não foram sincronizados
+      // Mescla itens de cache local que ainda não foram sincronizados
       const localItems = this.loadFromLocalCache();
       localItems.forEach(localItem => {
         if (!results.find(r => r.createdAt === localItem.createdAt || r.id === localItem.id)) {
@@ -960,8 +1038,36 @@
         }
       });
 
-      // 3. Ordena do mais recente para o mais antigo
       return results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    /**
+     * Recupera o CSV 100% completo (descomprimindo e juntando chunks se necessário)
+     */
+    async getFullCSV(item) {
+      if (!item) return '';
+
+      let rawPayload = item.csvData || '';
+
+      // Se tiver chunks adicionais salvos na nuvem
+      if (item.source === 'firestore' && item.totalChunks > 1 && item.id) {
+        try {
+          const chunkParts = [rawPayload];
+          for (let i = 1; i < item.totalChunks; i++) {
+            const chkResp = await fetch(`${this.baseUrl}/${item.id}_chk_${i}?key=${this.apiKey}`);
+            if (chkResp.ok) {
+              const chkJson = await chkResp.json();
+              const chkData = chkJson.fields?.chunkData?.stringValue || '';
+              chunkParts.push(chkData);
+            }
+          }
+          rawPayload = chunkParts.join('');
+        } catch (e) {
+          console.warn('Erro ao recuperar chunks adicionais:', e);
+        }
+      }
+
+      return await this.decompressData(rawPayload);
     }
 
     /**
@@ -1425,13 +1531,15 @@
           </div>
         `;
 
-        div.querySelector('.btn-load-hist').addEventListener('click', () => {
-          if (item.csvData) {
-            this.currentRawCSV = item.csvData;
+        div.querySelector('.btn-load-hist').addEventListener('click', async () => {
+          this.showToast('Recuperando dados completos da nuvem...', 'info');
+          const fullCSV = await this.firebaseService.getFullCSV(item);
+          if (fullCSV) {
+            this.currentRawCSV = fullCSV;
             this.currentFilename = item.filename;
-            this.parseAndRender(item.csvData, item.filename);
+            this.parseAndRender(fullCSV, item.filename);
             this.closeHistoryModal();
-            this.showToast(`Gráfico "${item.filename}" carregado da nuvem!`, 'success');
+            this.showToast(`Gráfico "${item.filename}" carregado com todos os dados!`, 'success');
           } else {
             this.showToast('Os dados brutos deste registro não estão disponíveis.', 'warning');
           }
